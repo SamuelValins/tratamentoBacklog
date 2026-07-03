@@ -1,8 +1,12 @@
 const { app } = require('@azure/functions');
-const { TableClient } = require('@azure/data-tables');
+const { TableClient, AzureSASCredential } = require('@azure/data-tables');
 
-const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING;
-const tableName = "ContratosRetirada"; 
+// Configurações manuais para o teste com SAS Token
+const accountName = "dashboardclarobrasil";
+const tableName = "ContratosRetirada";
+
+// Cole aqui o seu Token SAS que você copiou (começando com ?sv=...)
+const sasToken = "COLE_AQUI_O_SEU_TOKEN_SAS"; 
 
 app.http('obterContratos', {
     methods: ['GET'],
@@ -18,14 +22,9 @@ app.http('obterContratos', {
                 return { status: 400, json: { error: "Cidade e Safra são obrigatórios." } };
             }
 
-            if (!connectionString) {
-                return { 
-                    status: 500, 
-                    json: { error: "Erro de Configuração no Azure SWA: Variável AZURE_STORAGE_CONNECTION_STRING ausente." } 
-                };
-            }
-
-            const client = TableClient.fromConnectionString(connectionString, tableName);
+            // Instancia o cliente da Tabela com o SAS Token
+            const tableServiceUrl = `https://${accountName}.table.core.windows.net`;
+            const client = new TableClient(tableServiceUrl, tableName, new AzureSASCredential(sasToken));
             const contratos = [];
 
             let filterString = `PartitionKey eq '${cidade}' and mes_safra eq '${safra}'`;
@@ -50,7 +49,6 @@ app.http('obterContratos', {
                     tipo: entity.tipo_retirada,
                     safra: entity.mes_safra,
                     obs: entity.obs || ""
-                    // Coordenadas (lat/lon) removidas para não travar quando ausentes
                 });
             }
 
