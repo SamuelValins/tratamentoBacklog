@@ -232,7 +232,7 @@ function renderizarPreview() {
     document.getElementById('preview-section').style.display = 'block';
 
     const primeirasLinhas = contratosProcessados.slice(0, 5);
-    primeirasLinhas.forEach(item => {
+    firstRows = primeirasLinhas.forEach(item => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td>${item.RowKey}</td>
@@ -245,7 +245,7 @@ function renderizarPreview() {
     });
 }
 
-// --- SUBMISSÃO EM LOTES (PREVINE TIMEOUT E ERROS DE REDE) ---
+// --- SUBMISSÃO EM LOTES (PREVINE TIMEOUT E TRATA ERROS DE FORMA ROBUSTA) ---
 document.getElementById('btn-enviar').addEventListener('click', async () => {
     const senha = document.getElementById('input-senha').value.trim();
     const modo = document.querySelector('input[name="modo-carga"]:checked').value;
@@ -296,9 +296,22 @@ document.getElementById('btn-enviar').addEventListener('click', async () => {
                 body: JSON.stringify(payload)
             });
 
+            // TRATAMENTO DE ERROS EM LOTES DE FORMA ROBUSTA:
             if (!response.ok) {
-                const result = await response.json();
-                throw new Error(result.error || "Erro no envio deste lote.");
+                let mensagemErroServidor = "";
+                try {
+                    // Tenta ler como texto puro para evitar falhar se não for um JSON válido
+                    const textoPuro = await response.text();
+                    try {
+                        const jsonErro = JSON.parse(textoPuro);
+                        mensagemErroServidor = jsonErro.error || textoPuro;
+                    } catch (e) {
+                        mensagemErroServidor = textoPuro || `Código de status: ${response.status}`;
+                    }
+                } catch (e) {
+                    mensagemErroServidor = `Falha de rede com status ${response.status}`;
+                }
+                throw new Error(mensagemErroServidor);
             }
 
             enviados += lote.length;
@@ -308,7 +321,7 @@ document.getElementById('btn-enviar').addEventListener('click', async () => {
 
         } catch (err) {
             console.error(err);
-            alert(`Falha no envio do lote a partir da linha ${enviados}. Erro: ${err.message}`);
+            alert(`Falha no envio do lote a partir da linha ${enviados}.\n\nDetalhes do Erro: ${err.message}`);
             btnEnviar.disabled = false;
             btnEnviar.textContent = "PROCESSAR E ENVIAR AO AZURE";
             return;
