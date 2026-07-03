@@ -206,9 +206,7 @@ document.getElementById('input-csv').addEventListener('change', function(e) {
                     tel_celular: row['tel_celular'] ? row['tel_celular'].trim() : '',
                     endereco: row['endereco'] ? row['endereco'].trim().toUpperCase() : '',
                     bairro: row['bairro'] ? row['bairro'].trim().toUpperCase() : '',
-                    complemento: row['complemento'] ? row['complemento'].trim().toUpperCase() : '',
-                    latitude: row['latitude'] ? parseFloat(row['latitude']) : null,
-                    longitude: row['longitude'] ? parseFloat(row['longitude']) : null
+                    complemento: row['complemento'] ? row['complemento'].trim().toUpperCase() : ''
                 };
 
                 if (mapeado.RowKey && mapeado.PartitionKey) {
@@ -232,7 +230,7 @@ function renderizarPreview() {
     document.getElementById('preview-section').style.display = 'block';
 
     const primeirasLinhas = contratosProcessados.slice(0, 5);
-    firstRows = primeirasLinhas.forEach(item => {
+    primeirasLinhas.forEach(item => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td>${item.RowKey}</td>
@@ -300,7 +298,6 @@ document.getElementById('btn-enviar').addEventListener('click', async () => {
             if (!response.ok) {
                 let mensagemErroServidor = "";
                 try {
-                    // Tenta ler como texto puro para evitar falhar se não for um JSON válido
                     const textoPuro = await response.text();
                     try {
                         const jsonErro = JSON.parse(textoPuro);
@@ -315,8 +312,6 @@ document.getElementById('btn-enviar').addEventListener('click', async () => {
             }
 
             enviados += lote.length;
-            
-            // Depois do primeiro lote limpo (se "substituir"), o resto entra em modo acumular
             acaoAtual = 'adicionar';
 
         } catch (err) {
