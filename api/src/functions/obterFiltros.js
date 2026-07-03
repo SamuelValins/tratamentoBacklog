@@ -20,17 +20,12 @@ app.http('obterFiltros', {
             
             // Projeta apenas as colunas necessárias para reduzir consumo de banda e custos
             const entities = tableClient.listEntities({
-                queryOptions: { select: ['Cidade', 'MesSafra'] }
+                queryOptions: { select: ['MesSafra'] }
             });
 
-            const cidadesUnicas = new Set();
             const safrasUnicas = new Set();
 
             for await (const entity of entities) {
-                if (entity.Cidade) {
-                    cidadesUnicas.add(entity.Cidade.trim().toUpperCase());
-                }
-                
                 if (entity.MesSafra) {
                     const mesSafraValue = entity.MesSafra.trim();
                     // Extrai apenas dígitos para identificar o número do mês de safra
@@ -48,7 +43,6 @@ app.http('obterFiltros', {
             return {
                 status: 200,
                 jsonBody: {
-                    cidades: Array.from(cidadesUnicas).sort(),
                     safras: Array.from(safrasUnicas).sort()
                 }
             };
