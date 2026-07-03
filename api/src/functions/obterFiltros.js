@@ -6,7 +6,6 @@ app.http('obterFiltros', {
     authLevel: 'anonymous',
     handler: async (request, context) => {
         try {
-            // Tenta obter a connection string customizada primeiro, depois a padrão
             const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING || process.env.AzureWebJobsStorage;
             
             if (!connectionString) {
@@ -19,7 +18,7 @@ app.http('obterFiltros', {
 
             const tableClient = TableClient.fromConnectionString(connectionString, 'ContratosRetirada');
             
-            // O uso de 'select' garante que apenas as colunas necessárias sejam transmitidas do banco, reduzindo o uso de banda e custos
+            // Projeta apenas as colunas necessárias para reduzir consumo de banda e processamento
             const entities = tableClient.listEntities({
                 queryOptions: { select: ['Cidade', 'MesSafra'] }
             });
@@ -31,8 +30,18 @@ app.http('obterFiltros', {
                 if (entity.Cidade) {
                     cidadesUnicas.add(entity.Cidade.trim().toUpperCase());
                 }
+                
                 if (entity.MesSafra) {
-                    safrasUnicas.add(entity.MesSafra.trim());
+                    const mesSafraValue = entity.MesSafra.trim();
+                    // Extrai apenas dígitos para identificar o número do mês de safra
+                    const matchDigito = mesSafraValue.match(/\d+/);
+                    if (matchDigito) {
+                        const numeroMes = parseInt(matchDigito[0], 10);
+                        // Filtra estritamente safras do 1 ao 4 mês, omitindo anos (ex: 2026) e safra 13+
+                        if (numeroMes >= 1 && numeroMes <= 4 && !mesSafraValue.includes('2026')) {
+                            safrasUnicas.add(mesSafraValue);
+                        }
+                    }
                 }
             }
 
