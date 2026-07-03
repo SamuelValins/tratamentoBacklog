@@ -449,7 +449,7 @@ document.getElementById('btn-carregar').addEventListener('click', async () => {
     renderizarContratos(blocoExibicao);
     indexExibicaoAtual += limiteExibicao;
 
-    // Atuliza visualmente o botão indicando quantos contratos restam na fila geral
+    // Atualiza visualmente o botão indicando quantos contratos restam na fila geral
     if (indexExibicaoAtual < todosContratosOrdenados.length) {
         const restantes = todosContratosOrdenados.length - indexExibicaoAtual;
         btnCarregar.textContent = `CARREGAR PRÓXIMOS ${Math.min(limiteExibicao, restantes)} CONTRATOS 🧭`;
@@ -922,39 +922,11 @@ function iniciarAtendimento(contratoId) {
     }
 }
 
-// --- FUNÇÃO PARA POPULAR FILTROS DINAMICAMENTE DA TABELA DO AZURE ---
-async function carregarFiltrosDinamicos() {
-    const selectSafra = document.getElementById('select-safra');
-
-    try {
-        const response = await fetch('/api/obterFiltros');
-        if (response.ok) {
-            const data = await response.json();
-
-            // Popula Safras
-            selectSafra.innerHTML = '<option value="TODOS">TODOS</option>';
-            data.safras.forEach(safra => {
-                const opt = document.createElement('option');
-                opt.value = safra;
-                opt.textContent = safra;
-                selectSafra.appendChild(opt);
-            });
-        } else {
-            selectSafra.innerHTML = '<option value="">Erro ao carregar safras</option>';
-        }
-    } catch (err) {
-        console.error("Falha ao buscar filtros dinâmicos na API:", err);
-        selectSafra.innerHTML = '<option value="">Falha de conexão com a API</option>';
-    }
-}
-
 window.addEventListener('load', async () => {
     const loginSalvo = localStorage.getItem('login_tecnico');
     if (loginSalvo) {
         document.getElementById('input-tecnico').value = loginSalvo;
     }
-    // Carrega dinamicamente as cidades e safras gravadas na tabela ContratosRetirada
-    await carregarFiltrosDinamicos();
 });
 </script>
 </body>
