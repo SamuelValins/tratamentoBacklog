@@ -10,7 +10,7 @@ app.http('obterContratos', {
             const safra = request.query.get('safra');
             const tipo = request.query.get('tipo');
 
-            context.log(`[obterContratos] Buscando Cidade: ${cidade}, Safra: ${safra}`);
+            context.log(`[obterContratos] Buscando - Cidade: ${cidade}, Safra: ${safra}, Tipo: ${tipo}`);
 
             if (!cidade || !safra) {
                 return {
@@ -19,31 +19,40 @@ app.http('obterContratos', {
                 };
             }
 
-            // Lê as conexões disponíveis no ambiente
             const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING || process.env.AzureWebJobsStorage;
             
             if (!connectionString) {
                 return {
                     status: 500,
-                    jsonBody: { 
-                        error: "Connection string não encontrada no ambiente do Azure.",
-                        diagnostico: "Variável AZURE_STORAGE_CONNECTION_STRING não foi propagada ou não existe."
-                    }
+                    jsonBody: { error: "Configuração ausente: AZURE_STORAGE_CONNECTION_STRING ou AzureWebJobsStorage não definidos no ambiente." }
                 };
             }
 
             const tableClient = TableClient.fromConnectionString(connectionString, 'ContratosRetirada');
 
             const cidadeUpper = cidade.trim().toUpperCase();
-            let safraFiltro = safra.trim();
-            const matchDigito = safra.match(/\d+/);
-            const safraCurta = matchDigito ? matchDigito[0] : safraFiltro;
+            
+            // Filtro da Cidade
+            let queryFilter = `Cidade eq '${cidadeUpper}'`;
 
-            let queryFilter = `Cidade eq '${cidadeUpper}' and (MesSafra eq '${safraFiltro}' or MesSafra eq '${safraCurta}')`;
+            // Filtro de Safra (Ignora se for "TODOS")
+            if (safra && safra !== 'TODOS') {
+                let safraFiltro = safra.trim();
+                const matchDigito = safra.match(/\d+/);
+                const safraCurta = matchDigito ? matchDigito[0] : safraFiltro;
+                queryFilter += ` and (MesSafra eq '${safraFiltro}' or MesSafra eq '${safraCurta}')`;
+            }
 
+            // Filtro de Desconexão com mapeamento exato do Banco Azure
             if (tipo && tipo !== 'TODOS') {
                 const tipoUpper = tipo.trim().toUpperCase();
-                queryFilter += ` and TipoDesconexao eq '${tipoUpper}'`;
+                if (tipoUpper.includes('OPC')) {
+                    queryFilter += ` and TipoDesconexao eq 'DESCONECTADO - OPCAO'`;
+                } else if (tipoUpper.includes('INAD')) {
+                    queryFilter += ` and TipoDesconexao eq 'DESCONECTADO - INADIMPLENCIA (TOTAL)'`;
+                } else {
+                    queryFilter += ` and TipoDesconexao eq '${tipoUpper}'`;
+                }
             }
 
             const entities = tableClient.listEntities({
@@ -62,12 +71,13 @@ app.http('obterContratos', {
                     tipo: entity.TipoDesconexao || 'DESCONEXÃO',
                     titular: entity.Titular || 'N/D',
                     endereco: entity.Endereco || 'Endereço não cadastrado',
-                    complemento: entity.IdCompl ? `${entity.IdCompl} ${entity.ComplDescr || ''}`.trim() : (entity.ComplDescr || ''),
+                    complemento: entity.IdCompl || '',
                     bairro: entity.Bairro || '',
                     tel_res: entity.TelRes || '',
                     tel_cel: entity.TelCel || '',
                     qtd_equip: qtdEquip,
                     modelo_equip: entity.ModeloEquip || entity.FamiliaEquip || 'N/D',
+                    mac: entity.Mac || 'N/D', // Captura o MAC para exibição via clique
                     obs: entity.Obs || '',
                     lat: null, 
                     lon: null
@@ -78,16 +88,9 @@ app.http('obterContratos', {
 
         } catch (error) {
             context.error("[obterContratos] Erro Crítico:", error);
-            
-            // Retorna o erro detalhado diretamente ao frontend para podermos ver o erro no console/rede
             return {
                 status: 500,
-                jsonBody: { 
-                    error: `Falha na execução: ${error.message}`,
-                    detalhes: error.toString(),
-                    stack: error.stack,
-                    has_connection_string: !!(process.env.AZURE_STORAGE_CONNECTION_STRING || process.env.AzureWebJobsStorage)
-                }
+                jsonBody: { error: error.message || "Erro interno ao buscar contratos." }
             };
         }
     }
