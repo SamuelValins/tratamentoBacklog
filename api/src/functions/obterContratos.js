@@ -5,32 +5,41 @@ app.http('obterContratos', {
     methods: ['GET'],
     authLevel: 'anonymous',
     handler: async (request, context) => {
-        const urlParams = new URL(request.url).searchParams;
-        const cidade = urlParams.get('cidade');
-        const safra = urlParams.get('safra');
-        const tipo = urlParams.get('tipo');
-
-        if (!cidade || !safra) {
-            return {
-                status: 400,
-                jsonBody: { error: "Parâmetros 'cidade' e 'safra' são obrigatórios." }
-            };
-        }
-
-        // Conecta à tabela populada pelo dashboard principal usando a String de Conexão padrão
-        const connectionString = process.env.AzureWebJobsStorage;
-        const tableClient = TableClient.fromConnectionString(connectionString, 'ContratosRetirada');
-
         try {
-            // Normaliza filtros para busca segura
-            const cidadeUpper = cidade.trim().toUpperCase();
+            // Em Azure Functions v4, request.query é um objeto URLSearchParams nativo.
+            // O uso de .get() é blindado e imune a falhas de parsing de URL.
+            const cidade = request.query.get('cidade');
+            const safra = request.query.get('safra');
+            const tipo = request.query.get('tipo');
+
+            context.log(`[obterContratos] Iniciando busca - Cidade: ${cidade}, Safra: ${safra}, Tipo: ${tipo}`);
+
+            if (!cidade || !safra) {
+                return {
+                    status: 400,
+                    jsonBody: { error: "Parâmetros 'cidade' e 'safra' são obrigatórios." }
+                };
+            }
+
+            // Suporte duplo para conexão: tenta customizado primeiro, depois a conexão de sistema padrão
+            const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING || process.env.AzureWebJobsStorage;
             
-            // Tratamento preventivo para variações de formato de safra (Ex: "2º mês" ou "2")
+            if (!connectionString) {
+                context.error("[obterContratos] Erro: Nenhuma Connection String configurada!");
+                return {
+                    status: 500,
+                    jsonBody: { error: "Configuração ausente: AZURE_STORAGE_CONNECTION_STRING ou AzureWebJobsStorage não definidos no ambiente." }
+                };
+            }
+
+            const tableClient = TableClient.fromConnectionString(connectionString, 'ContratosRetirada');
+
+            const cidadeUpper = cidade.trim().toUpperCase();
             let safraFiltro = safra.trim();
             const matchDigito = safra.match(/\d+/);
             const safraCurta = matchDigito ? matchDigito[0] : safraFiltro;
 
-            // Monta a query OData dinâmica
+            // Filtro flexível para aceitar variações de escrita (ex: "2º mês" ou "2")
             let queryFilter = `Cidade eq '${cidadeUpper}' and (MesSafra eq '${safraFiltro}' or MesSafra eq '${safraCurta}')`;
 
             if (tipo && tipo !== 'TODOS') {
@@ -45,7 +54,6 @@ app.http('obterContratos', {
             const contratosFormatados = [];
 
             for await (const entity of entities) {
-                // Estima quantidade de equipamentos baseado nos MACs salvos
                 const macString = entity.Mac || '';
                 const qtdEquip = macString ? macString.split('/').length : 1;
 
@@ -62,7 +70,7 @@ app.http('obterContratos', {
                     qtd_equip: qtdEquip,
                     modelo_equip: entity.ModeloEquip || entity.FamiliaEquip || 'N/D',
                     obs: entity.Obs || '',
-                    lat: null, // Será preenchido dinamicamente pelo GPS/Geocodificador do app
+                    lat: null, 
                     lon: null
                 });
             }
@@ -70,10 +78,10 @@ app.http('obterContratos', {
             return { status: 200, jsonBody: contratosFormatados };
 
         } catch (error) {
-            context.error("Erro ao consultar ContratosRetirada:", error);
+            context.error("[obterContratos] Erro Crítico:", error);
             return {
                 status: 500,
-                jsonBody: { error: "Erro interno no servidor ao consultar base de dados." }
+                jsonBody: { error: error.message || "Erro interno ao listar os contratos." }
             };
         }
     }
