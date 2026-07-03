@@ -196,6 +196,9 @@ button {
         <button id="btn-carregar" class="btn-primary">CARREGAR FILA E ORDENAR POR PROXIMIDADE</button>
     </div>
 
+    <!-- Container dinâmico para Alertas/Fallback do GPS -->
+    <div id="alert-gps-global"></div>
+
     <!-- Lista de Contratos Ordenados -->
     <div id="lista-contratos"></div>
 </div>
@@ -289,11 +292,28 @@ async function geocodificarFila(contratos) {
     }
 }
 
-// --- GERADOR DE MENSAGEM DO WHATSAPP ---
-function gerarMensagemWhatsapp(titular, endereco, cidade, contrato) {
-    const primeiroNome = titular ? titular.trim().split(' ')[0] : "Cliente";
-    const nomeFormatado = primeiroNome.charAt(0).toUpperCase() + primeiroNome.slice(1).toLowerCase();
-    return `olá sr ${nomeFormatado}, tudo bem? essou da Claro e estou entrando em contato com o senhor, a respeito de uma retirada de equipamento no endereço: ${endereco} Cidade ${cidade} (contrato ${contrato})`;
+// --- ATUALIZADOR E RETENTOR DE GPS GLOBAL ---
+async function atualizarGpsGlobal() {
+    const btnAlert = document.getElementById('btn-gps-global-alerta');
+    if (btnAlert) btnAlert.textContent = "🧭 BUSCANDO SATÉLITE...";
+    try {
+        localizacaoTecnico = await obterGeolocalizacao();
+        const alertDiv = document.getElementById('alert-gps-global');
+        alertDiv.innerHTML = `
+            <div style="background:#14532d; color:#4ade80; border:1px solid #22c55e; padding:12px; border-radius:8px; font-size:13px; font-weight:bold; text-align:center; margin-bottom:20px;">
+                ✅ GPS REATIVADO COM SUCESSO! Clique em carregar novamente para reordenar por proximidade.
+            </div>
+        `;
+    } catch (e) {
+        alert("Não foi possível acessar seu sinal de GPS. Certifique-se de ativar e permitir a localização do navegador.");
+        if (btnAlert) btnAlert.textContent = "⚠️ RETENTAR ATIVAR GPS";
+    }
+}
+
+// --- GERADOR DE MENSAGEM DO WHATSAPP (MOLDE EXACT DO CLIENTE) ---
+function gerarMensagemWhatsapp(endereco, complemento, bairro, cidade, contrato) {
+    const enderecoCompleto = `${endereco}${complemento ? ' - ' + complemento : ''}${bairro ? ', ' + bairro : ''}, ${cidade}`.toUpperCase();
+    return `Olá, tudo bem? Sou da central de apoio técnico da Claro. Gostaria de tratar a respeito da retirada de equipamentos no endereço: ${enderecoCompleto}. Poderia nos confirmar se este endereço está correto ou se houve alguma mudança? (Contrato: ${contrato}).`;
 }
 
 // --- CONTROLE DE CARREGAMENTO E PAGINAÇÃO (30 EM 30 POR PROXIMIDADE) ---
@@ -324,8 +344,15 @@ document.getElementById('btn-carregar').addEventListener('click', async () => {
 
         try {
             localizacaoTecnico = await obterGeolocalizacao();
+            document.getElementById('alert-gps-global').innerHTML = ""; // Limpa avisos se GPS funcionar
         } catch (e) {
-            alert("Atenção: Não foi possível obter sua localização de forma automática. Permita o GPS no navegador.");
+            // Em caso de falha de GPS, não quebra o fluxo de busca, apenas notifica e exibe botão de retentativa
+            document.getElementById('alert-gps-global').innerHTML = `
+                <div style="background:#7f1d1d; color:#fca5a5; border:1px solid #ef4444; padding:15px; border-radius:8px; font-size:13px; text-align:center; margin-bottom:20px;">
+                    ⚠️ GPS INDISPONÍVEL. A fila foi carregada sem ordenação de proximidade.<br>
+                    <button type="button" id="btn-gps-global-alerta" class="btn-warning" style="margin-top:10px; width:auto; display:inline-block; padding:8px 15px; font-size:12px;" onclick="atualizarGpsGlobal()">⚠️ ATIVAR GPS E ORDENAR FILA</button>
+                </div>
+            `;
         }
 
         btnCarregar.textContent = "BUSCANDO DADOS NO AZURE...";
@@ -424,7 +451,7 @@ function renderizarContratos(contratos) {
 
         // Formata os números de telefone para links limpos do WhatsApp
         const limparNumero = (num) => String(num).replace(/\D/g, '');
-        const mensagemPronta = gerarMensagemWhatsapp(item.titular, item.endereco, item.cidade, item.contrato);
+        const mensagemPronta = gerarMensagemWhatsapp(item.endereco, item.complemento, item.bairro, item.cidade, item.contrato);
         const mensagemCodificada = encodeURIComponent(mensagemPronta);
 
         let htmlTelefones = "";
@@ -454,7 +481,12 @@ function renderizarContratos(contratos) {
                 <strong>Telefones:</strong> 
                 ${htmlTelefones || '<span style="color:#ef4444;">Sem telefones salvos</span>'}
             </div>
-            <div class="info-linha"><strong>Equipamentos:</strong> ${item.qtd_equip} unidades (${item.modelo_equip})</div>
+            <div class="info-linha">
+                <strong>Equipamentos:</strong> ${item.qtd_equip} unidades (
+                <span style="color:#38bdf8; cursor:pointer; text-decoration:underline;" onclick="alert('MAC do Equipamento: ${item.mac || 'N/D'}')">
+                    ${item.modelo_equip}
+                </span>)
+            </div>
             ${item.obs ? `<div class="info-linha" style="color: #f59e0b;"><strong>Obs:</strong> ${item.obs}</div>` : ''}
             
             <div style="display:flex; gap:10px; margin-top:15px;">
@@ -876,7 +908,7 @@ async function carregarFiltrosDinamicos() {
             });
 
             // Popula Safras
-            selectSafra.innerHTML = '<option value="">SELECIONE O MÊS SAFRA</option>';
+            selectSafra.innerHTML = '<option value="TODOS">TODOS (EXIBIR TODOS)</option>';
             data.safras.forEach(safra => {
                 const opt = document.createElement('option');
                 opt.value = safra;
