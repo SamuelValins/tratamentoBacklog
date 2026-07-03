@@ -59,8 +59,8 @@ app.http('concluirAtendimento', {
             await tableClientHistorico.createTableIfNotExists();
 
             const registroAtendimento = {
-                PartitionKey: status, // Particionado por resultado
-                RowKey: `${contrato}_${Date.now()}`,
+                partitionKey: status, // Corrigido para partitionKey em minúsculo
+                rowKey: `${contrato}_${Date.now()}`, // Corrigido para rowKey em minúsculo
                 tecnico: tecnico,
                 dataConclusao: data_conclusao,
                 latitude: localizacao ? localizacao.latitude.toString() : "",
@@ -71,11 +71,6 @@ app.http('concluirAtendimento', {
             };
 
             await tableClientHistorico.createEntity(registroAtendimento);
-
-            // 3. (Opcional) Remover ou marcar como concluído na tabela original de contratos
-            const tableClientContratos = TableClient.fromConnectionString(connectionString, tableContratos);
-            // Para deletar o contrato da fila do Azure para que não apareça para outros técnicos:
-            // await tableClientContratos.deleteEntity(PartitionKeyCidade, contrato);
 
             return { status: 200, json: { message: "Atendimento gravado com sucesso no Azure!" } };
         } catch (error) {
