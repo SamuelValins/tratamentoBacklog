@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel de Rotas - Técnico de Retirada</title>
+<style>
+body {
+    margin: 0;
+    font-family: 'Segoe UI', sans-serif;
+    background: #0f172a;
+    color: white;
+}
+.header {
+    background: #1e293b;
+    padding: 20px;
+    font-size: 20px;
+    font-weight: bold;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #334155;
+    box-sizing: border-box;
+}
+.header span {
+    font-size: 18px;
+}
+.btn-nav {
+    background: #475569;
+    color: white;
+    padding: 8px 15px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: bold;
+    cursor: pointer;
+    border: none;
+    transition: background 0.2s;
+}
+.btn-nav:active {
+    background: #334155;
+}
+.container {
+    padding: 20px;
+    max-width: 600px;
+    margin: 0 auto;
+}
+.card {
+    background: #1e293b;
+    padding: 20px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    border: 1px solid #334155;
+}
+label {
+    display: block;
+    margin-top: 15px;
+    font-size: 14px;
+    color: #94a3b8;
+}
+input, select, textarea {
+    width: 100%;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid #334155;
+    background: #0f172a;
+    color: white;
+    margin-top: 5px;
+    box-sizing: border-box;
+    font-family: inherit;
+    font-size: 14px;
+}
+button {
+    color: white;
+    padding: 14px 20px;
+    border: none;
+    border-radius: 8px;
+    width: 100%;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background 0.2s;
+}
+.btn-primary { background: #2563eb; margin-top: 15px; }
+.btn-primary:active { background: #1d4ed8; }
+.btn-secondary { background: #475569; margin-top: 10px; }
+.btn-warning { background: #f59e0b; margin-top: 10px; }
+.btn-success { background: #22c55e; margin-top: 10px; }
+.btn-success:disabled {
+    background: #1e3a1e;
+    color: #4b5563;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+/* Opções de Atendimento */
+.btn-status-choice {
+    background: #0f172a;
+    border: 1px solid #334155;
+    color: #94a3b8;
+    font-size: 13px;
+    padding: 12px;
+    flex: 1;
+    cursor: pointer;
+    border-radius: 8px;
+    font-weight: bold;
+    transition: all 0.2s;
+}
+.btn-status-choice.active-prod {
+    background: #22c55e !important;
+    border-color: #22c55e !important;
+    color: white !important;
+}
+.btn-status-choice.active-improd {
+    background: #ef4444 !important;
+    border-color: #ef4444 !important;
+    color: white !important;
+}
+
+/* Lista de OS */
+.contrato-card {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 10px;
+    padding: 15px;
+    margin-bottom: 15px;
+}
+.contrato-header {
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 1px dashed #334155;
+    padding-bottom: 8px;
+    margin-bottom: 8px;
+}
+.contrato-titulo {
+    font-weight: bold;
+    color: #38bdf8;
+}
+.tag-tipo {
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-weight: bold;
+}
+.tipo-opcao { background: #1e3a8a; color: #93c5fd; }
+.tipo-inad { background: #7f1d1d; color: #fca5a5; }
+
+.info-linha {
+    font-size: 13px;
+    margin: 5px 0;
+    color: #cbd5e1;
+}
+.info-linha strong { color: #94a3b8; }
+.tel-link { color: #38bdf8; text-decoration: none; margin-right: 10px; }
+
+/* Formulário de conclusão */
+.conclusao-box {
+    display: none;
+    margin-top: 15px;
+    border-top: 1px solid #334155;
+    padding-top: 15px;
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+    <span>🚗 Rota de Retirada</span>
+    <button id="btn-historico" class="btn-nav">HISTÓRICO 📋</button>
+</div>
+
+<div class="container">
+    <!-- Configuração do Técnico / Filtros -->
+    <div class="card" id="card-filtros">
+        <h2>Painel de Configuração</h2>
+        
+        <label>Login do Técnico</label>
+        <input type="text" id="input-tecnico" placeholder="DIGITE SEU LOGIN">
+        
+        <label>Cidade de Atuação</label>
+        <select id="select-cidade">
+            <option value="">SELECIONE A CIDADE</option>
+            <option value="BAURU">BAURU</option>
+            <option value="SOROCABA">SOROCABA</option>
+            <option value="CAMPINAS">CAMPINAS</option>
+        </select>
+        
+        <label>Mês Safra</label>
+        <select id="select-safra">
+            <option value="">SELECIONE O MÊS SAFRA</option>
+            <option value="JUNHO/2026">JUNHO/2026</option>
+            <option value="JULHO/2026">JULHO/2026</option>
+        </select>
+        
+        <label>Tipo de Desconexão</label>
+        <select id="select-tipo">
+            <option value="TODOS">TODOS</option>
+            <option value="OPÇÃO">OPÇÃO</option>
+            <option value="INADIMPLÊNCIA">INADIMPLÊNCIA</option>
+        </select>
+        
+        <button id="btn-carregar" class="btn-primary">CARREGAR FILA E ORDENAR POR PROXIMIDADE</button>
+    </div>
+
+    <!-- Lista de Contratos Ordenados -->
+    <div id="lista-contratos"></div>
+</div>
+
+<!-- Modal de Histórico Local -->
+<div id="modal-historico" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.95); z-index: 10000; overflow-y: auto; padding: 20px; box-sizing: border-box;">
+    <div style="background: #1e293b; max-width: 500px; margin: 20px auto; padding: 20px; border-radius: 10px; border: 1px solid #334155; position: relative;">
+        <button id="btn-fechar-historico" style="position: absolute; top: 10px; right: 10px; width: 30px; height: 30px; border-radius: 50%; background: #ef4444; border: none; font-weight: bold; font-size: 16px; cursor: pointer; color: white; display: flex; align-items: center; justify-content: center; padding:0;">✕</button>
+        <h3 style="margin-top: 0; color: #38bdf8;">📋 Histórico de Atendimentos</h3>
+        <p style="font-size: 12px; color: #94a3b8; margin-bottom: 15px;">Listagem local de registros enviados por este dispositivo.</p>
+        <div id="historico-lista-container" style="display: flex; flex-direction: column; gap: 10px;">
+            <!-- Itens gerados via JavaScript -->
+        </div>
+    </div>
+</div>
+
+<script>
+// --- BANCO DE DADOS DE EXEMPLO (SIMULANDO RETORNO DO AZURE) ---
+const dadosExemploContratos = [
+    {
+        contrato: "1002030",
+        titular: "CARLOS DA SILVA",
+        endereco: "Rua Gustavo Maciel, 1200",
+        bairro: "Centro",
+        cidade: "BAURU",
+        complemento: "Apto 32",
+        tel_res: "1432221111",
+        tel_cel: "14998887777",
+        qtd_equip: 2,
+        modelo_equip: "MTA HUMAX & BOX KAON",
+        tipo: "OPÇÃO",
+        safra: "JULHO/2026",
+        obs: "CLIENTE EM RESIDÊNCIA APENAS APÓS AS 14H",
+        lat: -22.327500,
+        lon: -49.071500
+    },
+    {
+        contrato: "2004560",
+        titular: "MARIA DE SOUZA",
+        endereco: "Av. Getúlio Vargas, 250",
+        bairro: "Vila Universitária",
+        cidade: "BAURU",
+        complemento: "",
+        tel_res: "",
+        tel_cel: "14981112222",
+        qtd_equip: 1,
+        modelo_equip: "MODEM COMPAL",
+        tipo: "INADIMPLÊNCIA",
+        safra: "JULHO/2026",
+        obs: "RETIRAR 1 MODEM",
+        lat: -22.343200,
+        lon: -49.060100
+    }
+];
+
+let localizacaoTecnico = null;
+
+// Estruturas para gerenciar o estado temporário das fotos por contrato
+let fotosEquipamentos = {}; // { "contratoId": [base64_1, base64_2, ...] }
+let fotoFachada = {};       // { "contratoId": base64 }
+let statusAtendimento = {}; // { "contratoId": "PRODUTIVO" | "IMPRODUTIVO" }
+
+// --- GEOLOCALIZAÇÃO ---
+function obterGeolocalizacao() {
+    return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+            reject("Sem suporte a GPS");
+            return;
+        }
+        navigator.geolocation.getCurrentPosition(
+            position => resolve(position.coords),
+            error => reject(error),
+            { enableHighAccuracy: true, timeout: 10000 }
+        );
+    });
+}
+
+// --- FÓRMULA DE HAVERSINE ---
+function calcularDistanciaKm(lat1, lon1, lat2, lon2) {
+    const R = 6371; 
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+        Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+}
+
+// --- CONTROLE DE CARREGAMENTO ---
+document.getElementById('btn-carregar').addEventListener('click', async () => {
+    const login = document.getElementById('input-tecnico').value.trim();
+    const cidade = document.getElementById('select-cidade').value;
+    const safra = document.getElementById('select-safra').value;
+    const tipo = document.getElementById('select-tipo').value;
+
+    if (!login || !cidade || !safra) {
+        alert("Por favor, preencha todos os campos do painel antes de prosseguir.");
+        return;
+    }
+
+    localStorage.setItem('login_tecnico', login);
+
+    const btnCarregar = document.getElementById('btn-carregar');
+    btnCarregar.disabled = true;
+    btnCarregar.textContent = "OBTENDO GEOLOCALIZAÇÃO...";
+
+    try {
+        localizacaoTecnico = await obterGeolocalizacao();
+    } catch (e) {
+        alert("Atenção: Não foi possível obter sua localização de forma automática. Permita o GPS no navegador.");
+    }
+
+    btnCarregar.textContent = "FILTRANDO E ORDENANDO ROTAS...";
+
+    let contratosFiltrados = dadosExemploContratos.filter(item => {
+        const matchCidade = item.cidade === cidade;
+        const matchSafra = item.safra === safra;
+        const matchTipo = (tipo === "TODOS" || item.tipo === tipo);
+        return matchCidade && matchSafra && matchTipo;
+    });
+
+    if (localizacaoTecnico) {
+        contratosFiltrados.forEach(item => {
+            item.distancia = calcularDistanciaKm(
+                localizacaoTecnico.latitude, 
+                localizacaoTecnico.longitude, 
+                item.lat, 
+                item.lon
+            );
+        });
+        contratosFiltrados.sort((a, b) => a.distancia - b.distancia);
+    }
+
+    renderizarContratos(contratosFiltrados);
+    btnCarregar.disabled = false;
+    btnCarregar.textContent = "CARREGAR FILA E ORDENAR POR PROXIMIDADE";
+});
+
+// --- RENDERIZADOR DE CARDS ---
+function renderizarContratos(contratos) {
+    const container = document.getElementById('lista-contratos');
+    container.innerHTML = "";
+
+    if (contratos.length === 0) {
+        container.innerHTML = '<div style="text-align:center; padding:20px; color:#94a3b8;">Nenhum contrato localizado para os critérios informados.</div>';
+        return;
+    }
+
+    contratos.forEach(item => {
+        fotosEquipamentos[item.contrato] = [];
+        fotoFachada[item.contrato] = null;
+        statusAtendimento[item.contrato] = null;
+
+        const card = document.createElement('div');
+        card.className = 'contrato-card';
+        card.id = `card-${item.contrato}`;
+
+        const tagClass = item.tipo === 'OPÇÃO' ? 'tipo-opcao' : 'tipo-inad';
+        const distTexto = item.distancia ? ` • 📍 A ${item.distancia.toFixed(2)} Km` : "";
+
+        card.innerHTML = `
+            <div class="contrato-header">
+                <span class="contrato-titulo">CONTRATO: ${item.contrato}</span>
+                <span class="tag-tipo ${tagClass}">${item.tipo}</span>
+            </div>
+            <div class="info-linha"><strong>Titular:</strong> ${item.titular}</div>
+            <div class="info-linha"><strong>Endereço:</strong> ${item.endereco} ${item.complemento ? ' - ' + item.complemento : ''} (${item.bairro})${distTexto}</div>
+            <div class="info-linha">
+                <strong>Telefones:</strong> 
+                ${item.tel_res ? `<a class="tel-link" href="tel:${item.tel_res}">📞 Residencial</a>` : ''}
+                ${item.tel_cel ? `<a class="tel-link" href="tel:${item.tel_cel}">📱 Celular</a>` : ''}
+            </div>
+            <div class="info-linha"><strong>Equipamentos:</strong> ${item.qtd_equip} unidades (${item.modelo_equip})</div>
+            ${item.obs ? `<div class="info-linha" style="color: #f59e0b;"><strong>Obs:</strong> ${item.obs}</div>` : ''}
+            
+            <div style="display:flex; gap:10px; margin-top:15px;">
+                <button class="btn-primary" style="margin-top:0;" onclick="irParaMapa(${item.lat}, ${item.lon})">🧭 MAPA</button>
+                <button class="btn-warning" style="margin-top:0;" id="btn-atender-${item.contrato}" onclick="iniciarAtendimento('${item.contrato}')">INICIAR ATENDIMENTO</button>
+            </div>
+            
+            <!-- Caixa de Conclusão -->
+            <div class="conclusao-box" id="conclusao-${item.contrato}">
+                <label style="margin-top:0; font-weight:bold; color:#cbd5e1;">Selecione o Resultado:</label>
+                <div style="display: flex; gap: 10px; margin-top: 5px; margin-bottom: 15px;">
+                    <button type="button" id="btn-prod-${item.contrato}" class="btn-status-choice" onclick="selecionarStatusAtendimento('${item.contrato}', 'PRODUTIVO')">👍 PRODUTIVO (RETIRADO)</button>
+                    <button type="button" id="btn-improd-${item.contrato}" class="btn-status-choice" onclick="selecionarStatusAtendimento('${item.contrato}', 'IMPRODUTIVO')">👎 IMPRODUTIVO</button>
+                </div>
+
+                <!-- SUB-BOX PRODUTIVO -->
+                <div id="box-produtivo-${item.contrato}" style="display:none; border-top: 1px dashed #334155; padding-top: 10px;">
+                    <label>Fotos da Etiqueta do Equipamento Retirado (Mínimo de 1 foto)</label>
+                    <button type="button" class="btn-primary" style="margin-top:5px; margin-bottom:10px;" onclick="document.getElementById('input-etiqueta-${item.contrato}').click()">📸 ADICIONAR FOTO DA ETIQUETA</button>
+                    <input type="file" accept="image/*" capture="environment" id="input-etiqueta-${item.contrato}" style="display:none;" onchange="adicionarFotoEquipamento('${item.contrato}', this)">
+                    
+                    <div id="grid-fotos-${item.contrato}" style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 10px;"></div>
+                </div>
+
+                <!-- SUB-BOX IMPRODUTIVO -->
+                <div id="box-improdutivo-${item.contrato}" style="display:none; border-top: 1px dashed #334155; padding-top: 10px;">
+                    <label>Foto da Fachada da Residência (Obrigatório)</label>
+                    <button type="button" class="btn-primary" style="margin-top:5px; margin-bottom:10px;" onclick="document.getElementById('input-fachada-${item.contrato}').click()">📸 TIRAR FOTO DA FACHADA</button>
+                    <input type="file" accept="image/*" capture="environment" id="input-fachada-${item.contrato}" style="display:none;" onchange="definirFotoFachada('${item.contrato}', this)">
+                    
+                    <div id="preview-fachada-${item.contrato}" style="margin-bottom: 10px;"></div>
+
+                    <label>Código de Baixa (Obrigatório)</label>
+                    <input type="text" id="input-codigo-baixa-${item.contrato}" placeholder="DIGITE O CÓDIGO DE BAIXA" oninput="this.value = this.value.toUpperCase(); validarConclusao('${item.contrato}')">
+
+                    <label>Descrição Opcional</label>
+                    <textarea id="input-desc-improdutivo-${item.contrato}" placeholder="DIGITE DETALHES ADICIONAIS (OPCIONAL)" oninput="this.value = this.value.toUpperCase()"></textarea>
+                    
+                    <div id="status-gps-${item.contrato}" style="margin-top: 12px; padding: 12px; border-radius: 6px; font-size: 12px; font-weight: bold; text-align: center;"></div>
+                    <button type="button" id="btn-gps-manual-${item.contrato}" class="btn-warning" style="display:none; margin-top:10px;" onclick="obterGpsManual('${item.contrato}')">⚠️ ATUALIZAR GEOLOCALIZAÇÃO</button>
+                </div>
+
+                <!-- Botão de Conclusão Final -->
+                <button id="btn-concluir-final-${item.contrato}" class="btn-success" style="margin-top: 15px;" disabled onclick="enviarAtendimentoFinal('${item.contrato}')">SALVAR ATENDIMENTO</button>
+            </div>
+        `;
+        container.appendChild(card);
+    });
+}
+
+// --- REDIRECIONAMENTO DE MAPAS ---
+function irParaMapa(lat, lon) {
+    if (localizacaoTecnico) {
+        window.open(`https://www.google.com/maps/dir/?api=1&origin=${localizacaoTecnico.latitude},${localizacaoTecnico.longitude}&destination=${lat},${lon}&travelmode=driving`, '_blank');
+    } else {
+        window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lon}`, '_blank');
+    }
+}
+
+// --- INICIAR ATENDIMENTO ---
+function iniciarAtendimento(contratoId) {
+    document.getElementById(`conclusao-${contratoId}`).style.display = 'block';
+    const btnAtender = document.getElementById(`btn-atender-${contratoId}`);
+    btnAtender.textContent = "EM ATENDIMENTO...";
+    btnAtender.disabled = true;
+    btnAtender.style.background = "#475569";
+}
+
+// --- ALTERNADOR DE STATUS (PRODUTIVO VS IMPRODUTIVO) ---
+function selecionarStatusAtendimento(contratoId, status) {
+    statusAtendimento[contratoId] = status;
+    
+    const btnProd = document.getElementById(`btn-prod-${contratoId}`);
+    const btnImprod = document.getElementById(`btn-improd-${contratoId}`);
+    const boxProd = document.getElementById(`box-produtivo-${contratoId}`);
+    const boxImprod = document.getElementById(`box-improdutivo-${contratoId}`);
+
+    if (status === 'PRODUTIVO') {
+        btnProd.classList.add('active-prod');
+        btnImprod.classList.remove('active-improd');
+        boxProd.style.display = 'block';
+        boxImprod.style.display = 'none';
+    } else {
+        btnProd.classList.remove('active-prod');
+        btnImprod.classList.add('active-improd');
+        boxProd.style.display = 'none';
+        boxImprod.style.display = 'block';
+    }
+    validarConclusao(contratoId);
+}
+
+// --- FLUXO DE ADICIONAR E EXCLUIR FOTOS DO EQUIPAMENTO (MÚLTIPLAS) ---
+function adicionarFotoEquipamento(contratoId, input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        fotosEquipamentos[contratoId].push(e.target.result);
+        renderizarFotosEquipamentos(contratoId);
+        validarConclusao(contratoId);
+    };
+    reader.readAsDataURL(file);
+    input.value = ""; 
+}
+
+function renderizarFotosEquipamentos(contratoId) {
+    const grid = document.getElementById(`grid-fotos-${contratoId}`);
+    grid.innerHTML = "";
+
+    fotosEquipamentos[contratoId].forEach((imgSrc, index) => {
+        const imgContainer = document.createElement('div');
+        imgContainer.style.position = "relative";
+        imgContainer.style.aspectRatio = "1";
+        
+        const img = document.createElement('img');
+        img.src = imgSrc;
+        img.style.width = "100%";
+        img.style.height = "100%";
+        img.style.objectFit = "cover";
+        img.style.borderRadius = "6px";
+        img.style.border = "1px solid #475569";
+        
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = "button";
+        deleteBtn.innerHTML = "✕";
+        deleteBtn.style.position = "absolute";
+        deleteBtn.style.top = "2px";
+        deleteBtn.style.right = "2px";
+        deleteBtn.style.background = "#ef4444";
+        deleteBtn.style.color = "white";
+        deleteBtn.style.border = "none";
+        deleteBtn.style.borderRadius = "50%";
+        deleteBtn.style.width = "20px";
+        deleteBtn.style.height = "20px";
+        deleteBtn.style.fontSize = "10px";
+        deleteBtn.style.cursor = "pointer";
+        deleteBtn.style.padding = "0";
+        deleteBtn.style.display = "flex";
+        deleteBtn.style.alignItems = "center";
+        deleteBtn.style.justifyContent = "center";
+        deleteBtn.style.fontWeight = "bold";
+        
+        deleteBtn.onclick = () => {
+            fotosEquipamentos[contratoId].splice(index, 1);
+            renderizarFotosEquipamentos(contratoId);
+            validarConclusao(contratoId);
+        };
+        
+        imgContainer.appendChild(img);
+        imgContainer.appendChild(deleteBtn);
+        grid.appendChild(imgContainer);
+    });
+}
+
+// --- FLUXO DE ADICIONAR E EXCLUIR FOTO DA FACHADA (IMPRODUTIVO) ---
+function definirFotoFachada(contratoId, input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        fotoFachada[contratoId] = e.target.result;
+        
+        const previewDiv = document.getElementById(`preview-fachada-${contratoId}`);
+        previewDiv.innerHTML = `
+            <div style="position:relative; width: 100px; aspect-ratio:1;">
+                <img src="${e.target.result}" style="width:100%; height:100%; object-fit:cover; border-radius:6px; border:1px solid #475569;">
+                <button type="button" style="position:absolute; top:2px; right:2px; background:#ef4444; color:white; border:none; border-radius:50%; width:20px; height:20px; font-size:10px; cursor:pointer; padding:0; display:flex; align-items:center; justify-content:center; font-weight:bold;" onclick="removerFotoFachada('${contratoId}')">✕</button>
+            </div>
+        `;
+        validarConclusao(contratoId);
+    };
+    reader.readAsDataURL(file);
+    input.value = "";
+}
+
+function removerFotoFachada(contratoId) {
+    fotoFachada[contratoId] = null;
+    document.getElementById(`preview-fachada-${contratoId}`).innerHTML = "";
+    validarConclusao(contratoId);
+}
+
+// --- ATUALIZAÇÃO DO GPS MANUAL ---
+async function obterGpsManual(contratoId) {
+    const btnGps = document.getElementById(`btn-gps-manual-${contratoId}`);
+    btnGps.disabled = true;
+    btnGps.textContent = "BUSCANDO SATÉLITE...";
+    try {
+        localizacaoTecnico = await obterGeolocalizacao();
+    } catch (e) {
+        alert("Não foi possível acessar sua localização. Certifique-se de ativar o GPS de seu aparelho.");
+    }
+    btnGps.disabled = false;
+    btnGps.textContent = "⚠️ ATUALIZAR GEOLOCALIZAÇÃO";
+    validarConclusao(contratoId);
+}
+
+// --- VALIDAÇÃO GERAL DE REQUISITOS ---
+function validarConclusao(contratoId) {
+    const statusAtivo = statusAtendimento[contratoId];
+    const btnConcluir = document.getElementById(`btn-concluir-final-${contratoId}`);
+    
+    if (!statusAtivo) {
+        btnConcluir.disabled = true;
+        return;
+    }
+
+    if (statusAtivo === 'PRODUTIVO') {
+        const qtdFotos = fotosEquipamentos[contratoId] ? fotosEquipamentos[contratoId].length : 0;
+        btnConcluir.disabled = (qtdFotos === 0);
+    } else if (statusAtivo === 'IMPRODUTIVO') {
+        const temFotoFachada = !!fotoFachada[contratoId];
+        const codigoBaixa = document.getElementById(`input-codigo-baixa-${contratoId}`).value.trim();
+        const temGps = !!(localizacaoTecnico && localizacaoTecnico.latitude && localizacaoTecnico.longitude);
+
+        const statusGpsBox = document.getElementById(`status-gps-${contratoId}`);
+        const btnGps = document.getElementById(`btn-gps-manual-${contratoId}`);
+        
+        if (temGps) {
+            statusGpsBox.style.background = "#14532d";
+            statusGpsBox.style.color = "#4ade80";
+            statusGpsBox.style.border = "1px solid #22c55e";
+            statusGpsBox.innerHTML = `📍 GPS CAPTURADO:<br>Lat ${localizacaoTecnico.latitude} | Lon ${localizacaoTecnico.longitude}`;
+            btnGps.style.display = "none";
+        } else {
+            statusGpsBox.style.background = "#7f1d1d";
+            statusGpsBox.style.color = "#fca5a5";
+            statusGpsBox.style.border = "1px solid #ef4444";
+            statusGpsBox.innerHTML = `⚠️ GEOLOCALIZAÇÃO OBRIGATÓRIA PENDENTE.`;
+            btnGps.style.display = "block";
+        }
+
+        btnConcluir.disabled = !(temFotoFachada && codigoBaixa && temGps);
+    }
+}
+
+// --- CONCLUSÃO E ENVIO PARA O AZURE ---
+async function enviarAtendimentoFinal(contratoId) {
+    const statusAtivo = statusAtendimento[contratoId];
+    const tecnico = localStorage.getItem('login_tecnico');
+    const btnSalvar = document.getElementById(`btn-concluir-final-${contratoId}`);
+
+    btnSalvar.disabled = true;
+    btnSalvar.textContent = "SALVANDO NO AZURE...";
+
+    let payload = {
+        contrato: contratoId,
+        tecnico: tecnico,
+        status: statusAtivo,
+        data_conclusao: new Date().toISOString(),
+        localizacao: localizacaoTecnico ? {
+            latitude: localizacaoTecnico.latitude,
+            longitude: localizacaoTecnico.longitude
+        } : null
+    };
+
+    if (statusAtivo === 'PRODUTIVO') {
+        payload.imagens_etiqueta = fotosEquipamentos[contratoId];
+    } else {
+        payload.imagem_fachada = fotoFachada[contratoId];
+        payload.codigo_baixa = document.getElementById(`input-codigo-baixa-${contratoId}`).value.trim();
+        payload.observacao_conclusao = document.getElementById(`input-desc-improdutivo-${contratoId}`).value.trim();
+    }
+
+    try {
+        const response = await fetch('/api/concluirAtendimento', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+            alert(`Atendimento do contrato ${contratoId} registrado com sucesso!`);
+
+            // --- REGISTRAR NO HISTÓRICO LOCAL DO NAVEGADOR ---
+            const registroHistorico = {
+                contrato: contratoId,
+                status: statusAtivo,
+                dataHora: new Date().toISOString(),
+                tecnico: tecnico,
+                codigo_baixa: statusAtivo === 'IMPRODUTIVO' ? payload.codigo_baixa : null,
+                observacao: statusAtivo === 'IMPRODUTIVO' ? payload.observacao_conclusao : "EQUIPAMENTO RETIRADO COM SUCESSO",
+                qtd_fotos: statusAtivo === 'PRODUTIVO' ? payload.imagens_etiqueta.length : 1
+            };
+            salvarNoHistoricoLocal(registroHistorico);
+
+            document.getElementById(`card-${contratoId}`).remove();
+            
+            delete fotosEquipamentos[contratoId];
+            delete fotoFachada[contratoId];
+            delete statusAtendimento[contratoId];
+
+            const container = document.getElementById('lista-contratos');
+            if (container.children.length === 0) {
+                container.innerHTML = '<div style="text-align:center; padding:20px; color:#94a3b8; font-size:14px;">✅ Fila finalizada! Todos os contratos próximos foram atendidos.</div>';
+            }
+        } else {
+            const erro = await response.json();
+            alert("Erro ao salvar no Azure: " + (erro.error || "Erro desconhecido"));
+            btnSalvar.disabled = false;
+            btnSalvar.textContent = "SALVAR ATENDIMENTO";
+        }
+    } catch (err) {
+        console.error(err);
+        alert("Erro de rede ao conectar com o serviço do Azure.");
+        btnSalvar.disabled = false;
+        btnSalvar.textContent = "SALVAR ATENDIMENTO";
+    }
+}
+
+// --- FUNÇÕES DE CONTROLE DO HISTÓRICO LOCAL ---
+function salvarNoHistoricoLocal(novoRegistro) {
+    let historico = [];
+    try {
+        historico = JSON.parse(localStorage.getItem('historico_atendimentos')) || [];
+    } catch (e) {
+        historico = [];
+    }
+    historico.unshift(novoRegistro); // Adiciona o mais recente ao topo da lista
+    
+    // Armazena no máximo 50 registros para evitar sobrecarga de armazenamento local
+    if (historico.length > 50) {
+        historico = historico.slice(0, 50);
+    }
+    localStorage.setItem('historico_atendimentos', JSON.stringify(historico));
+}
+
+function renderizarListaHistorico() {
+    const container = document.getElementById('historico-lista-container');
+    container.innerHTML = '';
+    
+    let historico = [];
+    try {
+        historico = JSON.parse(localStorage.getItem('historico_atendimentos')) || [];
+    } catch (e) {
+        historico = [];
+    }
+    
+    if (historico.length === 0) {
+        container.innerHTML = '<div style="text-align:center; padding:20px; color:#94a3b8; font-size:13px;">Nenhum atendimento registrado localmente neste aparelho.</div>';
+        return;
+    }
+    
+    historico.forEach(item => {
+        const itemCard = document.createElement('div');
+        itemCard.style.background = '#0f172a';
+        itemCard.style.border = '1px solid #334155';
+        itemCard.style.borderRadius = '8px';
+        itemCard.style.padding = '12px';
+        itemCard.style.fontSize = '13px';
+        
+        const dataFormatada = new Date(item.dataHora).toLocaleString('pt-BR');
+        const tagColor = item.status === 'PRODUTIVO' ? '#22c55e' : '#ef4444';
+
+        itemCard.innerHTML = `
+            <div style="display:flex; justify-content:space-between; margin-bottom:8px; border-bottom:1px dashed #334155; padding-bottom:5px;">
+                <strong style="color:#38bdf8;">CONTRATO: ${item.contrato}</strong>
+                <span style="color:${tagColor}; font-weight:bold; font-size:11px;">${item.status}</span>
+            </div>
+            <div style="color:#cbd5e1; margin-bottom:4px;">📅 <strong>Data:</strong> ${dataFormatada}</div>
+            <div style="color:#cbd5e1; margin-bottom:4px;">👤 <strong>Técnico:</strong> ${item.tecnico}</div>
+            ${item.codigo_baixa ? `<div style="color:#cbd5e1; margin-bottom:4px;">🔑 <strong>Cód. Baixa:</strong> ${item.codigo_baixa}</div>` : ''}
+            <div style="color:#94a3b8; font-style:italic; word-break: break-word;">💬 ${item.observacao || 'Sem observações'}</div>
+            <div style="color:#cbd5e1; font-size:11px; margin-top:5px; text-align:right;">📷 Fotos salvas: ${item.qtd_fotos}</div>
+        `;
+        container.appendChild(itemCard);
+    });
+}
+
+// --- CONFIGURAÇÃO DE EVENTOS DO HISTÓRICO ---
+document.getElementById('btn-historico').addEventListener('click', () => {
+    document.getElementById('modal-historico').style.display = 'block';
+    renderizarListaHistorico();
+});
+
+document.getElementById('btn-fechar-historico').addEventListener('click', () => {
+    document.getElementById('modal-historico').style.display = 'none';
+});
+
+window.addEventListener('load', () => {
+    const loginSalvo = localStorage.getItem('login_tecnico');
+    if (loginSalvo) {
+        document.getElementById('input-tecnico').value = loginSalvo;
+    }
+});
+</script>
+</body>
+</html>
