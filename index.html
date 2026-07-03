@@ -150,7 +150,7 @@ button {
     color: #cbd5e1;
 }
 .info-linha strong { color: #94a3b8; }
-.tel-link { color: #38bdf8; text-decoration: none; margin-right: 10px; }
+.tel-link { color: #38bdf8; text-decoration: none; margin-right: 10px; font-weight: bold; }
 
 /* Formulário de conclusão */
 .conclusao-box {
@@ -220,6 +220,12 @@ let fotosEquipamentos = {}; // { "contratoId": [base64_1, base64_2, ...] }
 let fotoFachada = {};       // { "contratoId": base64 }
 let statusAtendimento = {}; // { "contratoId": "PRODUTIVO" | "IMPRODUTIVO" }
 
+// --- CONTROLE DE PAGINAÇÃO GLOBAL ---
+let queryAnterior = "";
+let todosContratosOrdenados = [];
+let indexExibicaoAtual = 0;
+const limiteExibicao = 30;
+
 // --- GEOLOCALIZAÇÃO ---
 function obterGeolocalizacao() {
     return new Promise((resolve, reject) => {
@@ -283,7 +289,14 @@ async function geocodificarFila(contratos) {
     }
 }
 
-// --- CONTROLE DE CARREGAMENTO ---
+// --- GERADOR DE MENSAGEM DO WHATSAPP ---
+function gerarMensagemWhatsapp(titular, endereco, cidade, contrato) {
+    const primeiroNome = titular ? titular.trim().split(' ')[0] : "Cliente";
+    const nomeFormatado = primeiroNome.charAt(0).toUpperCase() + primeiroNome.slice(1).toLowerCase();
+    return `olá sr ${nomeFormatado}, tudo bem? essou da Claro e estou entrando em contato com o senhor, a respeito de uma retirada de equipamento no endereço: ${endereco} Cidade ${cidade} (contrato ${contrato})`;
+}
+
+// --- CONTROLE DE CARREGAMENTO E PAGINAÇÃO (30 EM 30 POR PROXIMIDADE) ---
 document.getElementById('btn-carregar').addEventListener('click', async () => {
     const login = document.getElementById('input-tecnico').value.trim();
     const cidade = document.getElementById('select-cidade').value;
@@ -298,54 +311,93 @@ document.getElementById('btn-carregar').addEventListener('click', async () => {
     localStorage.setItem('login_tecnico', login);
 
     const btnCarregar = document.getElementById('btn-carregar');
-    btnCarregar.disabled = true;
-    btnCarregar.textContent = "OBTENDO GEOLOCALIZAÇÃO...";
+    const queryAtual = `${cidade}-${safra}-${tipo}`;
 
-    try {
-        localizacaoTecnico = await obterGeolocalizacao();
-    } catch (e) {
-        alert("Atenção: Não foi possível obter sua localização de forma automática. Permita o GPS no navegador.");
-    }
+    // Se mudou o filtro ou se a fila está vazia, realiza uma nova busca do zero
+    if (queryAtual !== queryAnterior || todosContratosOrdenados.length === 0) {
+        queryAnterior = queryAtual;
+        todosContratosOrdenados = [];
+        indexExibicaoAtual = 0;
 
-    btnCarregar.textContent = "BUSCANDO DADOS NO AZURE...";
+        btnCarregar.disabled = true;
+        btnCarregar.textContent = "OBTENDO GEOLOCALIZAÇÃO...";
 
-    let contratosFiltrados = [];
-    try {
-        const response = await fetch(`/api/obterContratos?cidade=${cidade}&safra=${safra}&tipo=${tipo}`);
-        if (response.ok) {
-            contratosFiltrados = await response.json();
-        } else {
-            alert("Erro ao buscar registros da base do Azure.");
+        try {
+            localizacaoTecnico = await obterGeolocalizacao();
+        } catch (e) {
+            alert("Atenção: Não foi possível obter sua localização de forma automática. Permita o GPS no navegador.");
         }
-    } catch (err) {
-        console.error("Erro na requisição: ", err);
-        alert("Falha de conexão com o banco de dados do Azure.");
-    }
 
-    // Geocodifica a fila em tempo real caso a localização do técnico esteja ativa e tenhamos contratos
-    if (localizacaoTecnico && contratosFiltrados.length > 0) {
-        await geocodificarFila(contratosFiltrados);
-        
-        contratosFiltrados.forEach(item => {
-            if (item.lat && item.lon) {
-                item.distancia = calcularDistanciaKm(
-                    localizacaoTecnico.latitude, 
-                    localizacaoTecnico.longitude, 
-                    item.lat, 
-                    item.lon
-                );
+        btnCarregar.textContent = "BUSCANDO DADOS NO AZURE...";
+
+        let contratosFiltrados = [];
+        try {
+            const response = await fetch(`/api/obterContratos?cidade=${cidade}&safra=${safra}&tipo=${tipo}`);
+            if (response.ok) {
+                contratosFiltrados = await response.json();
             } else {
-                item.distancia = 999999; // Sem GPS ou falha no mapeamento vai para o final
+                alert("Erro ao buscar registros da base do Azure.");
+                btnCarregar.disabled = false;
+                btnCarregar.textContent = "CARREGAR FILA E ORDENAR POR PROXIMIDADE";
+                return;
             }
-        });
-        
-        // Ordena dos mais próximos aos mais distantes
-        contratosFiltrados.sort((a, b) => a.distancia - b.distancia);
+        } catch (err) {
+            console.error("Erro na requisição: ", err);
+            alert("Falha de conexão com o banco de dados do Azure.");
+            btnCarregar.disabled = false;
+            btnCarregar.textContent = "CARREGAR FILA E ORDENAR POR PROXIMIDADE";
+            return;
+        }
+
+        // Geocodifica a fila em tempo real caso a localização do técnico esteja ativa e tenhamos contratos
+        if (contratosFiltrados.length > 0) {
+            if (localizacaoTecnico) {
+                await geocodificarFila(contratosFiltrados);
+                
+                contratosFiltrados.forEach(item => {
+                    if (item.lat && item.lon) {
+                        item.distancia = calcularDistanciaKm(
+                            localizacaoTecnico.latitude, 
+                            localizacaoTecnico.longitude, 
+                            item.lat, 
+                            item.lon
+                        );
+                    } else {
+                        item.distancia = 999999; // Sem GPS ou falha no mapeamento vai para o final
+                    }
+                });
+                
+                // Ordena dos mais próximos aos mais distantes
+                contratosFiltrados.sort((a, b) => a.distancia - b.distancia);
+            }
+            todosContratosOrdenados = contratosFiltrados;
+        }
     }
 
-    renderizarContratos(contratosFiltrados);
+    // Fatia os próximos 30 contratos inéditos para exibição
+    const blocoExibicao = todosContratosOrdenados.slice(indexExibicaoAtual, indexExibicaoAtual + limiteExibicao);
+
+    if (blocoExibicao.length === 0) {
+        alert("Fim da fila! Não há mais contratos pendentes para carregar com esses critérios.");
+        btnCarregar.disabled = false;
+        btnCarregar.textContent = "CARREGAR FILA E ORDENAR POR PROXIMIDADE";
+        indexExibicaoAtual = 0; // Prepara reset para próxima busca
+        return;
+    }
+
+    renderizarContratos(blocoExibicao);
+    indexExibicaoAtual += limiteExibicao;
+
+    // Atualiza visualmente o botão indicando quantos contratos restam na fila geral
+    if (indexExibicaoAtual < todosContratosOrdenados.length) {
+        const restantes = todosContratosOrdenados.length - indexExibicaoAtual;
+        btnCarregar.textContent = `CARREGAR PRÓXIMOS ${Math.min(limiteExibicao, restantes)} CONTRATOS 🧭`;
+    } else {
+        btnCarregar.textContent = "FIM DA FILA! RECARREGAR DO INÍCIO 🔄";
+        indexExibicaoAtual = 0; // Reseta o ponteiro caso queira rodar a fila novamente
+    }
+
     btnCarregar.disabled = false;
-    btnCarregar.textContent = "CARREGAR FILA E ORDENAR POR PROXIMIDADE";
 });
 
 // --- RENDERIZADOR DE CARDS ---
@@ -370,6 +422,27 @@ function renderizarContratos(contratos) {
         const tagClass = item.tipo.includes('OPCAO') ? 'tipo-opcao' : 'tipo-inad';
         const distTexto = (item.distancia && item.distancia !== 999999) ? ` • 📍 A ${item.distancia.toFixed(2)} Km` : "";
 
+        // Formata os números de telefone para links limpos do WhatsApp
+        const limparNumero = (num) => String(num).replace(/\D/g, '');
+        const mensagemPronta = gerarMensagemWhatsapp(item.titular, item.endereco, item.cidade, item.contrato);
+        const mensagemCodificada = encodeURIComponent(mensagemPronta);
+
+        let htmlTelefones = "";
+        if (item.tel_res) {
+            const numResLimpo = limparNumero(item.tel_res);
+            htmlTelefones += `<a class="tel-link" href="tel:${item.tel_res}">📞 Residencial</a>`;
+            if (numResLimpo.length >= 10) {
+                htmlTelefones += `<a href="https://api.whatsapp.com/send?phone=55${numResLimpo}&text=${mensagemCodificada}" target="_blank" style="color:#22c55e; text-decoration:none; font-weight:bold; margin-right:15px; font-size:12px;">💬 WhatsApp</a>`;
+            }
+        }
+        if (item.tel_cel) {
+            const numCelLimpo = limparNumero(item.tel_cel);
+            htmlTelefones += `<a class="tel-link" href="tel:${item.tel_cel}">📱 Celular</a>`;
+            if (numCelLimpo.length >= 10) {
+                htmlTelefones += `<a href="https://api.whatsapp.com/send?phone=55${numCelLimpo}&text=${mensagemCodificada}" target="_blank" style="color:#22c55e; text-decoration:none; font-weight:bold; margin-right:15px; font-size:12px;">💬 WhatsApp</a>`;
+            }
+        }
+
         card.innerHTML = `
             <div class="contrato-header">
                 <span class="contrato-titulo">CONTRATO: ${item.contrato}</span>
@@ -379,8 +452,7 @@ function renderizarContratos(contratos) {
             <div class="info-linha"><strong>Endereço:</strong> ${item.endereco} ${item.complemento ? ' - ' + item.complemento : ''} (${item.bairro})${distTexto}</div>
             <div class="info-linha">
                 <strong>Telefones:</strong> 
-                ${item.tel_res ? `<a class="tel-link" href="tel:${item.tel_res}">📞 Residencial</a>` : ''}
-                ${item.tel_cel ? `<a class="tel-link" href="tel:${item.tel_cel}">📱 Celular</a>` : ''}
+                ${htmlTelefones || '<span style="color:#ef4444;">Sem telefones salvos</span>'}
             </div>
             <div class="info-linha"><strong>Equipamentos:</strong> ${item.qtd_equip} unidades (${item.modelo_equip})</div>
             ${item.obs ? `<div class="info-linha" style="color: #f59e0b;"><strong>Obs:</strong> ${item.obs}</div>` : ''}
