@@ -182,11 +182,20 @@ button {
             <option value="BAURU">BAURU</option>
             <option value="SOROCABA">SOROCABA</option>
             <option value="CAMPINAS">CAMPINAS</option>
+            <option value="SAO CARLOS">SAO CARLOS</option>
+            <option value="BARRINHA">BARRINHA</option>
+            <option value="AMERICANA">AMERICANA</option>
+            <option value="BERTIOGA">BERTIOGA</option>
+            <option value="ARARAS">ARARAS</option>
+            <option value="SAO JOSE DOS CAMPOS">SAO JOSE DOS CAMPOS</option>
         </select>
         
         <label>Mês Safra</label>
         <select id="select-safra">
             <option value="">SELECIONE O MÊS SAFRA</option>
+            <option value="2º mês">2º mês</option>
+            <option value="3º mês">3º mês</option>
+            <option value="4º mês">4º mês</option>
             <option value="JUNHO/2026">JUNHO/2026</option>
             <option value="JULHO/2026">JULHO/2026</option>
         </select>
@@ -253,6 +262,41 @@ function calcularDistanciaKm(lat1, lon1, lat2, lon2) {
     return R * c;
 }
 
+// --- AUXILIAR DE DELAY ---
+function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// --- GEOCODIFICADOR EM SEGUNDO PLANO (NOMINATIM OSM) ---
+async function geocodificarFila(contratos) {
+    const total = contratos.length;
+    const btnCarregar = document.getElementById('btn-carregar');
+    
+    for (let i = 0; i < total; i++) {
+        const item = contratos[i];
+        btnCarregar.textContent = `MAPEANDO ENDEREÇOS: ${i + 1} de ${total}...`;
+        
+        // Monta a busca inteligente baseada em rua + bairro + cidade no estado de SP
+        const busca = `${item.endereco}, ${item.bairro || ''}, ${item.cidade}, SP, Brasil`;
+        try {
+            const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(busca)}&limit=1`, {
+                headers: { 'User-Agent': 'TratamentoBacklogApp/1.0' }
+            });
+            if (response.ok) {
+                const data = await response.json();
+                if (data && data.length > 0) {
+                    item.lat = parseFloat(data[0].lat);
+                    item.lon = parseFloat(data[0].lon);
+                }
+            }
+        } catch (e) {
+            console.error("Erro ao geocodificar contrato: ", item.contrato, e);
+        }
+        // Delay para respeitar as diretrizes de taxa de uso da API gratuita do OpenStreetMap
+        await delay(100);
+    }
+}
+
 // --- CONTROLE DE CARREGAMENTO ---
 document.getElementById('btn-carregar').addEventListener('click', async () => {
     const login = document.getElementById('input-tecnico').value.trim();
@@ -277,11 +321,10 @@ document.getElementById('btn-carregar').addEventListener('click', async () => {
         alert("Atenção: Não foi possível obter sua localização de forma automática. Permita o GPS no navegador.");
     }
 
-    btnCarregar.textContent = "FILTRANDO E ORDENANDO ROTAS...";
+    btnCarregar.textContent = "BUSCANDO DADOS NO AZURE...";
 
     let contratosFiltrados = [];
     try {
-        // Chamada real ao back-end integrado com o Azure Table Storage
         const response = await fetch(`/api/obterContratos?cidade=${cidade}&safra=${safra}&tipo=${tipo}`);
         if (response.ok) {
             contratosFiltrados = await response.json();
@@ -293,15 +336,24 @@ document.getElementById('btn-carregar').addEventListener('click', async () => {
         alert("Falha de conexão com o banco de dados do Azure.");
     }
 
+    // Geocodifica a fila em tempo real caso a localização do técnico esteja ativa e tenhamos contratos
     if (localizacaoTecnico && contratosFiltrados.length > 0) {
+        await geocodificarFila(contratosFiltrados);
+        
         contratosFiltrados.forEach(item => {
-            item.distancia = calcularDistanciaKm(
-                localizacaoTecnico.latitude, 
-                localizacaoTecnico.longitude, 
-                item.lat, 
-                item.lon
-            );
+            if (item.lat && item.lon) {
+                item.distancia = calcularDistanciaKm(
+                    localizacaoTecnico.latitude, 
+                    localizacaoTecnico.longitude, 
+                    item.lat, 
+                    item.lon
+                );
+            } else {
+                item.distancia = 999999; // Sem GPS ou falha no mapeamento vai para o final
+            }
         });
+        
+        // Ordena dos mais próximos aos mais distantes
         contratosFiltrados.sort((a, b) => a.distancia - b.distancia);
     }
 
@@ -329,8 +381,8 @@ function renderizarContratos(contratos) {
         card.className = 'contrato-card';
         card.id = `card-${item.contrato}`;
 
-        const tagClass = item.tipo === 'OPÇÃO' ? 'tipo-opcao' : 'tipo-inad';
-        const distTexto = item.distancia ? ` • 📍 A ${item.distancia.toFixed(2)} Km` : "";
+        const tagClass = item.tipo.includes('OPCAO') ? 'tipo-opcao' : 'tipo-inad';
+        const distTexto = (item.distancia && item.distancia !== 999999) ? ` • 📍 A ${item.distancia.toFixed(2)} Km` : "";
 
         card.innerHTML = `
             <div class="contrato-header">
@@ -348,7 +400,7 @@ function renderizarContratos(contratos) {
             ${item.obs ? `<div class="info-linha" style="color: #f59e0b;"><strong>Obs:</strong> ${item.obs}</div>` : ''}
             
             <div style="display:flex; gap:10px; margin-top:15px;">
-                <button class="btn-primary" style="margin-top:0;" onclick="irParaMapa(${item.lat}, ${item.lon})">🧭 MAPA</button>
+                <button class="btn-primary" style="margin-top:0;" onclick="irParaMapa(${item.lat || 0}, ${item.lon || 0}, '${item.endereco.replace(/'/g, "\\'")}', '${item.cidade}')">🧭 MAPA</button>
                 <button class="btn-warning" style="margin-top:0;" id="btn-atender-${item.contrato}" onclick="iniciarAtendimento('${item.contrato}')">INICIAR ATENDIMENTO</button>
             </div>
             
@@ -396,21 +448,20 @@ function renderizarContratos(contratos) {
 }
 
 // --- REDIRECIONAMENTO DE MAPAS ---
-function irParaMapa(lat, lon) {
-    if (localizacaoTecnico) {
-        window.open(`https://www.google.com/maps/dir/?api=1&origin=${localizacaoTecnico.latitude},${localizacaoTecnico.longitude}&destination=${lat},${lon}&travelmode=driving`, '_blank');
+function irParaMapa(lat, lon, endereco, cidade) {
+    if (lat && lon && !isNaN(lat) && !isNaN(lon) && lat !== 0) {
+        if (localizacaoTecnico) {
+            window.open(`https://www.google.com/maps/dir/?api=1&origin=${localizacaoTecnico.latitude},${localizacaoTecnico.longitude}&destination=${lat},${lon}&travelmode=driving`, '_blank');
+        } else {
+            window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lon}`, '_blank');
+        }
+    } else if (endereco) {
+        // Busca inteligente combinando a rua com a cidade
+        const buscaEnderecoCompleto = `${endereco}, ${cidade || ''} - SP`;
+        window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(buscaEnderecoCompleto)}`, '_blank');
     } else {
-        window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lon}`, '_blank');
+        alert("Endereço não disponível para navegação.");
     }
-}
-
-// --- INICIAR ATENDIMENTO ---
-function iniciarAtendimento(contratoId) {
-    document.getElementById(`conclusao-${contratoId}`).style.display = 'block';
-    const btnAtender = document.getElementById(`btn-atender-${contratoId}`);
-    btnAtender.textContent = "EM ATENDIMENTO...";
-    btnAtender.disabled = true;
-    btnAtender.style.background = "#475569";
 }
 
 // --- ALTERNADOR DE STATUS (PRODUTIVO VS IMPRODUTIVO) ---
@@ -620,7 +671,6 @@ async function enviarAtendimentoFinal(contratoId) {
         if (response.ok) {
             alert(`Atendimento do contrato ${contratoId} registrado com sucesso!`);
 
-            // --- REGISTRAR NO HISTÓRICO LOCAL DO NAVEGADOR ---
             const registroHistorico = {
                 contrato: contratoId,
                 status: statusAtivo,
