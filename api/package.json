@@ -1,0 +1,14 @@
+{
+  "name": "api-tratamento-backlog",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/functions/*.js",
+  "scripts": {
+    "start": "func start"
+  },
+  "dependencies": {
+    "@azure/functions": "^4.0.0",
+    "@azure/data-tables": "^13.2.0",
+    "@azure/storage-blob": "^12.17.0"
+  }
+}

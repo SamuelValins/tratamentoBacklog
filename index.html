@@ -218,44 +218,6 @@ button {
 </div>
 
 <script>
-// --- BANCO DE DADOS DE EXEMPLO (SIMULANDO RETORNO DO AZURE) ---
-const dadosExemploContratos = [
-    {
-        contrato: "1002030",
-        titular: "CARLOS DA SILVA",
-        endereco: "Rua Gustavo Maciel, 1200",
-        bairro: "Centro",
-        cidade: "BAURU",
-        complemento: "Apto 32",
-        tel_res: "1432221111",
-        tel_cel: "14998887777",
-        qtd_equip: 2,
-        modelo_equip: "MTA HUMAX & BOX KAON",
-        tipo: "OPÇÃO",
-        safra: "JULHO/2026",
-        obs: "CLIENTE EM RESIDÊNCIA APENAS APÓS AS 14H",
-        lat: -22.327500,
-        lon: -49.071500
-    },
-    {
-        contrato: "2004560",
-        titular: "MARIA DE SOUZA",
-        endereco: "Av. Getúlio Vargas, 250",
-        bairro: "Vila Universitária",
-        cidade: "BAURU",
-        complemento: "",
-        tel_res: "",
-        tel_cel: "14981112222",
-        qtd_equip: 1,
-        modelo_equip: "MODEM COMPAL",
-        tipo: "INADIMPLÊNCIA",
-        safra: "JULHO/2026",
-        obs: "RETIRAR 1 MODEM",
-        lat: -22.343200,
-        lon: -49.060100
-    }
-];
-
 let localizacaoTecnico = null;
 
 // Estruturas para gerenciar o estado temporário das fotos por contrato
@@ -317,14 +279,21 @@ document.getElementById('btn-carregar').addEventListener('click', async () => {
 
     btnCarregar.textContent = "FILTRANDO E ORDENANDO ROTAS...";
 
-    let contratosFiltrados = dadosExemploContratos.filter(item => {
-        const matchCidade = item.cidade === cidade;
-        const matchSafra = item.safra === safra;
-        const matchTipo = (tipo === "TODOS" || item.tipo === tipo);
-        return matchCidade && matchSafra && matchTipo;
-    });
+    let contratosFiltrados = [];
+    try {
+        // Chamada real ao back-end integrado com o Azure Table Storage
+        const response = await fetch(`/api/obterContratos?cidade=${cidade}&safra=${safra}&tipo=${tipo}`);
+        if (response.ok) {
+            contratosFiltrados = await response.json();
+        } else {
+            alert("Erro ao buscar registros da base do Azure.");
+        }
+    } catch (err) {
+        console.error("Erro na requisição: ", err);
+        alert("Falha de conexão com o banco de dados do Azure.");
+    }
 
-    if (localizacaoTecnico) {
+    if (localizacaoTecnico && contratosFiltrados.length > 0) {
         contratosFiltrados.forEach(item => {
             item.distancia = calcularDistanciaKm(
                 localizacaoTecnico.latitude, 
@@ -695,9 +664,8 @@ function salvarNoHistoricoLocal(novoRegistro) {
     } catch (e) {
         historico = [];
     }
-    historico.unshift(novoRegistro); // Adiciona o mais recente ao topo da lista
+    historico.unshift(novoRegistro); 
     
-    // Armazena no máximo 50 registros para evitar sobrecarga de armazenamento local
     if (historico.length > 50) {
         historico = historico.slice(0, 50);
     }
