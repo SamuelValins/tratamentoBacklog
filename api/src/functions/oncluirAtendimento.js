@@ -2,7 +2,7 @@ const { app } = require('@azure/functions');
 const { TableClient } = require('@azure/data-tables');
 const { BlobServiceClient } = require('@azure/storage-blob');
 
-const connectionString = process.env.AzureWebJobsStorage;
+const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING;
 const tableContratos = "ContratosRetirada";
 const tableHistorico = "HistoricoAtendimentos"; // Tabela de resultados finais
 const containerName = "fotos-atendimentos"; // Pasta do Blob Storage para fotos

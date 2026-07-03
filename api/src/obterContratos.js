@@ -2,7 +2,7 @@ const { app } = require('@azure/functions');
 const { TableClient, AzureNamedKeyCredential } = require('@azure/data-tables');
 
 // Conexão com o Azure Table Storage (puxa das variáveis de ambiente do Azure)
-const connectionString = process.env.AzureWebJobsStorage;
+const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING;
 const tableName = "ContratosRetirada"; // Nome da tabela que você criará no Azure
 
 app.http('obterContratos', {

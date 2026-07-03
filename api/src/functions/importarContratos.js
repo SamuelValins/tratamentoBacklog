@@ -1,7 +1,7 @@
 const { app } = require('@azure/functions');
 const { TableClient } = require('@azure/data-tables');
 
-const connectionString = process.env.AzureWebJobsStorage;
+const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING;
 const tableName = "ContratosRetirada";
 
 // Senha mestra de segurança gerencial (Mude aqui para a senha desejada)
