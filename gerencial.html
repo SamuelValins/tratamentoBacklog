@@ -194,6 +194,7 @@ document.getElementById('input-csv').addEventListener('change', function(e) {
             contratosProcessados = [];
 
             dadosOriginal.forEach(row => {
+                // Mapeia estritamente apenas as colunas úteis da planilha
                 const mapeado = {
                     RowKey: row['RowKey'] ? row['RowKey'].trim() : '',
                     PartitionKey: row['PartitionKey'] ? row['PartitionKey'].trim().toUpperCase() : '',
@@ -206,7 +207,8 @@ document.getElementById('input-csv').addEventListener('change', function(e) {
                     tel_celular: row['tel_celular'] ? row['tel_celular'].trim() : '',
                     endereco: row['endereco'] ? row['endereco'].trim().toUpperCase() : '',
                     bairro: row['bairro'] ? row['bairro'].trim().toUpperCase() : '',
-                    complemento: row['complemento'] ? row['complemento'].trim().toUpperCase() : ''
+                    complemento: row['complemento'] ? row['complemento'].trim().toUpperCase() : '',
+                    obs: row['obs'] ? row['obs'].trim().toUpperCase() : ''
                 };
 
                 if (mapeado.RowKey && mapeado.PartitionKey) {
@@ -243,7 +245,7 @@ function renderizarPreview() {
     });
 }
 
-// --- SUBMISSÃO EM LOTES (PREVINE TIMEOUT E TRATA ERROS DE FORMA ROBUSTA) ---
+// --- SUBMISSÃO EM LOTES ---
 document.getElementById('btn-enviar').addEventListener('click', async () => {
     const senha = document.getElementById('input-senha').value.trim();
     const modo = document.querySelector('input[name="modo-carga"]:checked').value;
@@ -266,18 +268,14 @@ document.getElementById('btn-enviar').addEventListener('click', async () => {
 
     btnEnviar.disabled = true;
 
-    // Tamanho seguro do lote para envio (100 contratos por requisição)
     const tamanhoLote = 100;
     const totalContratos = contratosProcessados.length;
     let enviados = 0;
-
-    // Se "substituir", apenas o primeiro lote apaga o banco. Os lotes seguintes apenas adicionam.
     let acaoAtual = modo; 
 
     for (let i = 0; i < totalContratos; i += tamanhoLote) {
         const lote = contratosProcessados.slice(i, i + tamanhoLote);
         
-        // Atualiza a barra de progresso visual no botão
         const progresso = Math.round((enviados / totalContratos) * 100);
         btnEnviar.textContent = `ENVIANDO: ${enviados} de ${totalContratos} (${progresso}%)...`;
 
@@ -294,7 +292,6 @@ document.getElementById('btn-enviar').addEventListener('click', async () => {
                 body: JSON.stringify(payload)
             });
 
-            // TRATAMENTO DE ERROS EM LOTES DE FORMA ROBUSTA:
             if (!response.ok) {
                 let mensagemErroServidor = "";
                 try {
@@ -323,12 +320,10 @@ document.getElementById('btn-enviar').addEventListener('click', async () => {
         }
     }
 
-    // Sucesso absoluto após todos os lotes finalizados
     btnEnviar.disabled = false;
     btnEnviar.textContent = "PROCESSAR E ENVIAR AO AZURE";
     alert(`Sucesso! Todos os ${totalContratos} contratos foram carregados com êxito na nuvem.`);
     
-    // Limpa os campos após sucesso
     document.getElementById('input-csv').value = "";
     document.getElementById('input-senha').value = "";
     document.getElementById('info-carga').style.display = 'none';
