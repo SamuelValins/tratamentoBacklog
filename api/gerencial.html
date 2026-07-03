@@ -186,7 +186,6 @@ document.getElementById('input-csv').addEventListener('change', function(e) {
     const file = e.target.files[0];
     if (!file) return;
 
-    // Processa o CSV diretamente na máquina do coordenador
     Papa.parse(file, {
         header: true,
         skipEmptyLines: true,
@@ -194,9 +193,7 @@ document.getElementById('input-csv').addEventListener('change', function(e) {
             const dadosOriginal = results.data;
             contratosProcessados = [];
 
-            // Mapeia os campos da planilha do usuário para a nomenclatura correta do banco do Azure
             dadosOriginal.forEach(row => {
-                // Remove espaços em branco extras dos cabeçalhos e valores
                 const mapeado = {
                     RowKey: row['RowKey'] ? row['RowKey'].trim() : '',
                     PartitionKey: row['PartitionKey'] ? row['PartitionKey'].trim().toUpperCase() : '',
@@ -214,20 +211,16 @@ document.getElementById('input-csv').addEventListener('change', function(e) {
                     longitude: row['longitude'] ? parseFloat(row['longitude']) : null
                 };
 
-                // Adiciona apenas se contiver as chaves primárias (Contrato e Cidade)
                 if (mapeado.RowKey && mapeado.PartitionKey) {
                     contratosProcessados.push(mapeado);
                 }
             });
 
-            // Mostra informações do processamento
             const infoCarga = document.getElementById('info-carga');
             infoCarga.style.display = 'block';
             infoCarga.textContent = `✔ Planilha lida com sucesso! ${contratosProcessados.length} contratos válidos identificados.`;
 
-            // Renderiza as primeiras 5 linhas para pré-visualização
             renderizarPreview();
-            
             document.getElementById('btn-enviar').disabled = false;
         }
     });
@@ -252,7 +245,7 @@ function renderizarPreview() {
     });
 }
 
-// --- SUBMISSÃO DO FORMULÁRIO AO AZURE ---
+// --- SUBMISSÃO EM LOTES (PREVINE TIMEOUT E ERROS DE REDE) ---
 document.getElementById('btn-enviar').addEventListener('click', async () => {
     const senha = document.getElementById('input-senha').value.trim();
     const modo = document.querySelector('input[name="modo-carga"]:checked').value;
@@ -274,42 +267,65 @@ document.getElementById('btn-enviar').addEventListener('click', async () => {
     }
 
     btnEnviar.disabled = true;
-    btnEnviar.textContent = "ENVIANDO DADOS PARA O AZURE...";
 
-    const payload = {
-        senha: senha,
-        acao: modo,
-        contratos: contratosProcessados
-    };
+    // Tamanho seguro do lote para envio (100 contratos por requisição)
+    const tamanhoLote = 100;
+    const totalContratos = contratosProcessados.length;
+    let enviados = 0;
 
-    try {
-        const response = await fetch('/api/importarContratos', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
+    // Se "substituir", apenas o primeiro lote apaga o banco. Os lotes seguintes apenas adicionam.
+    let acaoAtual = modo; 
 
-        const result = await response.json();
+    for (let i = 0; i < totalContratos; i += tamanhoLote) {
+        const lote = contratosProcessados.slice(i, i + tamanhoLote);
+        
+        // Atualiza a barra de progresso visual no botão
+        const progresso = Math.round((enviados / totalContratos) * 100);
+        btnEnviar.textContent = `ENVIANDO: ${enviados} de ${totalContratos} (${progresso}%)...`;
 
-        if (response.ok) {
-            alert(`Sucesso! ${contratosProcessados.length} contratos importados com êxito na nuvem.`);
+        const payload = {
+            senha: senha,
+            acao: acaoAtual,
+            contratos: lote
+        };
+
+        try {
+            const response = await fetch('/api/importarContratos', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const result = await response.json();
+                throw new Error(result.error || "Erro no envio deste lote.");
+            }
+
+            enviados += lote.length;
             
-            // Limpa formulário após sucesso
-            document.getElementById('input-csv').value = "";
-            document.getElementById('input-senha').value = "";
-            document.getElementById('info-carga').style.display = 'none';
-            document.getElementById('preview-section').style.display = 'none';
-            contratosProcessados = [];
-        } else {
-            alert("Erro reportado pelo servidor: " + (result.error || "Erro de validação ou de senha."));
+            // Depois do primeiro lote limpo (se "substituir"), o resto entra em modo acumular
+            acaoAtual = 'adicionar';
+
+        } catch (err) {
+            console.error(err);
+            alert(`Falha no envio do lote a partir da linha ${enviados}. Erro: ${err.message}`);
+            btnEnviar.disabled = false;
+            btnEnviar.textContent = "PROCESSAR E ENVIAR AO AZURE";
+            return;
         }
-    } catch (err) {
-        console.error(err);
-        alert("Erro de rede ao conectar com o servidor do Azure.");
-    } finally {
-        btnEnviar.disabled = false;
-        btnEnviar.textContent = "PROCESSAR E ENVIAR AO AZURE";
     }
+
+    // Sucesso absoluto após todos os lotes finalizados
+    btnEnviar.disabled = false;
+    btnEnviar.textContent = "PROCESSAR E ENVIAR AO AZURE";
+    alert(`Sucesso! Todos os ${totalContratos} contratos foram carregados com êxito na nuvem.`);
+    
+    // Limpa os campos após sucesso
+    document.getElementById('input-csv').value = "";
+    document.getElementById('input-senha').value = "";
+    document.getElementById('info-carga').style.display = 'none';
+    document.getElementById('preview-section').style.display = 'none';
+    contratosProcessados = [];
 });
 </script>
 </body>
