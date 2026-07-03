@@ -178,26 +178,12 @@ button {
         
         <label>Cidade de Atuação</label>
         <select id="select-cidade">
-            <option value="">SELECIONE A CIDADE</option>
-            <option value="BAURU">BAURU</option>
-            <option value="SOROCABA">SOROCABA</option>
-            <option value="CAMPINAS">CAMPINAS</option>
-            <option value="SAO CARLOS">SAO CARLOS</option>
-            <option value="BARRINHA">BARRINHA</option>
-            <option value="AMERICANA">AMERICANA</option>
-            <option value="BERTIOGA">BERTIOGA</option>
-            <option value="ARARAS">ARARAS</option>
-            <option value="SAO JOSE DOS CAMPOS">SAO JOSE DOS CAMPOS</option>
+            <option value="">CARREGANDO CIDADES... ⏳</option>
         </select>
         
         <label>Mês Safra</label>
         <select id="select-safra">
-            <option value="">SELECIONE O MÊS SAFRA</option>
-            <option value="2º mês">2º mês</option>
-            <option value="3º mês">3º mês</option>
-            <option value="4º mês">4º mês</option>
-            <option value="JUNHO/2026">JUNHO/2026</option>
-            <option value="JULHO/2026">JULHO/2026</option>
+            <option value="">CARREGANDO SAFRAS... ⏳</option>
         </select>
         
         <label>Tipo de Desconexão</label>
@@ -677,7 +663,7 @@ async function enviarAtendimentoFinal(contratoId) {
                 dataHora: new Date().toISOString(),
                 tecnico: tecnico,
                 codigo_baixa: statusAtivo === 'IMPRODUTIVO' ? payload.codigo_baixa : null,
-                observacao: statusAtivo === 'IMPRODUTIVO' ? payload.observacao_conclusao : "EQUIPAMENTO RETIRADO COM SUCESSO",
+                observacao: statusAtivo === 'IMPRODUTIVO' ? payload.observacao_conclusao : "EQUIPAMENTO RETIRADO WITH SUCCESS",
                 qtd_fotos: statusAtivo === 'PRODUTIVO' ? payload.imagens_etiqueta.length : 1
             };
             salvarNoHistoricoLocal(registroHistorico);
@@ -774,11 +760,75 @@ document.getElementById('btn-fechar-historico').addEventListener('click', () => 
     document.getElementById('modal-historico').style.display = 'none';
 });
 
-window.addEventListener('load', () => {
+// --- FUNÇÃO PARA INICIAR O ATENDIMENTO DO CARD ---
+function iniciarAtendimento(contratoId) {
+    const boxConclusao = document.getElementById(`conclusao-${contratoId}`);
+    const btnAtender = document.getElementById(`btn-atender-${contratoId}`);
+    
+    if (boxConclusao.style.display === "block") {
+        boxConclusao.style.display = "none";
+        btnAtender.textContent = "INICIAR ATENDIMENTO";
+        btnAtender.style.background = "#f59e0b";
+    } else {
+        boxConclusao.style.display = "block";
+        btnAtender.textContent = "CANCELAR ATENDIMENTO ✕";
+        btnAtender.style.background = "#ef4444";
+        
+        // Tenta obter coordenadas no momento que inicia para otimizar tempo
+        obterGeolocalizacao().then(coords => {
+            localizacaoTecnico = coords;
+            validarConclusao(contratoId);
+        }).catch(() => {
+            console.log("Aguardando ativação do GPS manual.");
+        });
+    }
+}
+
+// --- FUNÇÃO PARA POPULAR FILTROS DINAMICAMENTE DA TABELA DO AZURE ---
+async function carregarFiltrosDinamicos() {
+    const selectCidade = document.getElementById('select-cidade');
+    const selectSafra = document.getElementById('select-safra');
+
+    try {
+        const response = await fetch('/api/obterFiltros');
+        if (response.ok) {
+            const data = await response.json();
+
+            // Popula Cidades
+            selectCidade.innerHTML = '<option value="">SELECIONE A CIDADE</option>';
+            data.cidades.forEach(cidade => {
+                const opt = document.createElement('option');
+                opt.value = cidade;
+                opt.textContent = cidade;
+                selectCidade.appendChild(opt);
+            });
+
+            // Popula Safras
+            selectSafra.innerHTML = '<option value="">SELECIONE O MÊS SAFRA</option>';
+            data.safras.forEach(safra => {
+                const opt = document.createElement('option');
+                opt.value = safra;
+                opt.textContent = safra;
+                selectSafra.appendChild(opt);
+            });
+        } else {
+            selectCidade.innerHTML = '<option value="">Erro ao carregar cidades</option>';
+            selectSafra.innerHTML = '<option value="">Erro ao carregar safras</option>';
+        }
+    } catch (err) {
+        console.error("Falha ao buscar filtros dinâmicos na API:", err);
+        selectCidade.innerHTML = '<option value="">Falha de conexão com a API</option>';
+        selectSafra.innerHTML = '<option value="">Falha de conexão com a API</option>';
+    }
+}
+
+window.addEventListener('load', async () => {
     const loginSalvo = localStorage.getItem('login_tecnico');
     if (loginSalvo) {
         document.getElementById('input-tecnico').value = loginSalvo;
     }
+    // Carrega dinamicamente as cidades e safras gravadas na tabela ContratosRetirada
+    await carregarFiltrosDinamicos();
 });
 </script>
 </body>
