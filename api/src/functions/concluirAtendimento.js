@@ -2,32 +2,36 @@ const { app } = require('@azure/functions');
 const { TableClient } = require('@azure/data-tables');
 const { BlobServiceClient } = require('@azure/storage-blob');
 
-const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING;
-const tableContratos = "ContratosRetirada";
-const tableHistorico = "HistoricoAtendimentos"; // Tabela de resultados finais
-const containerName = "fotos-atendimentos"; // Pasta do Blob Storage para fotos
+// Helper para converter e subir fotos em base64 para o Azure Blob Storage de forma limpa
+async function subirFotoBlob(contrato, base64Data, index, connectionString) {
+    try {
+        const matches = base64Data.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+        let buffer;
+        let contentType = "image/jpeg";
 
-// Função auxiliar para enviar imagem Base64 ao Azure Blob Storage
-async function salvarImagemNoBlob(base64Data, contratoId, tipoFoto, index = 0) {
-    if (!base64Data) return null;
-    
-    const blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
-    const containerClient = blobServiceClient.getContainerClient(containerName);
-    await containerClient.createIfNotExists({ publicAccess: 'blob' });
+        if (matches && matches.length === 3) {
+            contentType = matches[1];
+            buffer = Buffer.from(matches[2], 'base64');
+        } else {
+            buffer = Buffer.from(base64Data, 'base64');
+        }
 
-    // Extrai o tipo mime e dados puros
-    const matches = base64Data.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
-    if (!matches || matches.length !== 3) return null;
-    const buffer = Buffer.from(matches[2], 'base64');
+        const blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
+        const containerClient = blobServiceClient.getContainerClient('evidencias');
+        await containerClient.createIfNotExists({ publicAccessLevel: 'blob' });
 
-    const blobName = `${contratoId}_${tipoFoto}_${index}_${Date.now()}.jpg`;
-    const blockBlobClient = containerClient.getBlockBlobClient(blobName);
-    
-    await blockBlobClient.upload(buffer, buffer.length, {
-        blobHTTPHeaders: { blobContentType: 'image/jpeg' }
-    });
+        const nomeArquivo = `${contrato}_${Date.now()}_${index}.jpg`;
+        const blockBlobClient = containerClient.getBlockBlobClient(nomeArquivo);
 
-    return blockBlobClient.url; // Retorna o link público da foto salva
+        await blockBlobClient.upload(buffer, buffer.length, {
+            blobHTTPHeaders: { blobContentType: contentType }
+        });
+
+        return blockBlobClient.url; // Retorna a URL pública da foto
+    } catch (e) {
+        console.error("Erro ao realizar upload de foto para o Blob:", e);
+        return null;
+    }
 }
 
 app.http('concluirAtendimento', {
@@ -35,47 +39,97 @@ app.http('concluirAtendimento', {
     authLevel: 'anonymous',
     handler: async (request, context) => {
         try {
-            const body = await request.json();
-            const { contrato, tecnico, status, data_conclusao, localizacao, imagens_etiqueta, imagem_fachada, codigo_baixa, observacao_conclusao } = body;
+            const payload = await request.json();
+            const { contrato, tecnico, status, localizacao, codigo_baixa, observacao_conclusao } = payload;
 
             if (!contrato || !tecnico || !status) {
-                return { status: 400, json: { error: "Dados obrigatórios ausentes." } };
+                return { status: 400, jsonBody: { error: "Campos obrigatórios ausentes." } };
             }
 
-            // 1. Processar e salvar as fotos no Azure Blob Storage
-            let linksFotos = [];
-            if (status === 'PRODUTIVO' && imagens_etiqueta && imagens_etiqueta.length > 0) {
-                for (let i = 0; i < imagens_etiqueta.length; i++) {
-                    const url = await salvarImagemNoBlob(imagens_etiqueta[i], contrato, 'etiqueta', i);
-                    if (url) linksFotos.push(url);
+            const connectionString = process.env.AzureWebJobsStorage;
+            const rKey = contrato.trim().toUpperCase().replace(/[^a-zA-Z0-9]/g, '');
+
+            // --- PASSO 1: IDENTIFICAR A DATA DE ANALISE ORIGINAL DO CONTRATO ---
+            const clientRetirada = TableClient.fromConnectionString(connectionString, 'ContratosRetirada');
+            let partitionKeyOriginal = null;
+            let enderecoOriginal = "";
+
+            try {
+                // Varre a tabela ContratosRetirada para achar a data de partição vinculada
+                const result = clientRetirada.listEntities({
+                    queryOptions: { filter: `RowKey eq '${rKey}'` }
+                });
+                for await (const entity of result) {
+                    partitionKeyOriginal = entity.PartitionKey; // Ex: 20260703
+                    enderecoOriginal = entity.Endereco || "";
+                    break;
                 }
-            } else if (status === 'IMPRODUTIVO' && imagem_fachada) {
-                const url = await salvarImagemNoBlob(imagem_fachada, contrato, 'fachada', 0);
-                if (url) linksFotos.push(url);
+            } catch (err) {
+                context.warn("Contrato de origem não localizado em ContratosRetirada, usando data de hoje.");
             }
 
-            // 2. Registrar no histórico de atendimentos do Azure Table Storage
-            const tableClientHistorico = TableClient.fromConnectionString(connectionString, tableHistorico);
-            await tableClientHistorico.createTableIfNotExists();
+            // Fallback de segurança para data atual caso o contrato não seja localizado na fila
+            if (!partitionKeyOriginal) {
+                partitionKeyOriginal = new Date().toISOString().split('T')[0].replace(/-/g, '');
+            }
 
-            const registroAtendimento = {
-                partitionKey: status, // Corrigido para partitionKey em minúsculo
-                rowKey: `${contrato}_${Date.now()}`, // Corrigido para rowKey em minúsculo
-                tecnico: tecnico,
-                dataConclusao: data_conclusao,
-                latitude: localizacao ? localizacao.latitude.toString() : "",
-                longitude: localizacao ? localizacao.longitude.toString() : "",
-                codigoBaixa: codigo_baixa || "",
-                observacoes: observacao_conclusao || "",
-                urlsFotos: JSON.stringify(linksFotos)
+            // --- PASSO 2: PROCESSAR E ENVIAR AS IMAGENS AO BLOB STORAGE ---
+            const urlsFotos = [];
+            const imagensParaSubir = status === 'PRODUTIVO' ? (payload.imagens_etiqueta || []) : [payload.imagem_fachada].filter(Boolean);
+
+            for (let i = 0; i < imagensParaSubir.length; i++) {
+                const urlResult = await subirFotoBlob(rKey, imagensParaSubir[i], i, connectionString);
+                if (urlResult) urlsFotos.push(urlResult);
+            }
+
+            // --- PASSO 3: GRAVAR NO PAINEL PRINCIPAL (TratamentoContratos) ---
+            const clientTratamento = TableClient.fromConnectionString(connectionString, 'TratamentoContratos');
+            
+            const statusMesa = status === 'PRODUTIVO' ? 'revertido produtivo' : 'não revertido';
+            const obsMesa = status === 'PRODUTIVO' ? 'EQUIPAMENTO RETIRADO COM SUCESSO PELO TÉCNICO.' : (observacao_conclusao || 'Sem observações.');
+
+            const entidadeTratamento = {
+                PartitionKey: partitionKeyOriginal,
+                RowKey: rKey,
+                Status: statusMesa,
+                Atendente: tecnico.toUpperCase(),
+                EmailOriginal: `${tecnico.toLowerCase()}@claro.com.br`,
+                Observacao: obsMesa,
+                Categoria: "RETIRADA TÉCNICA",
+                DataUpdate: new Date().toISOString()
             };
 
-            await tableClientHistorico.createEntity(registroAtendimento);
+            await clientTratamento.upsertEntity(entidadeTratamento, "Replace");
 
-            return { status: 200, json: { message: "Atendimento gravado com sucesso no Azure!" } };
+            // --- PASSO 4: GRAVAR NA TABELA DE AUDITORIA DE FOTOS (EvidenciasTable) ---
+            const clientEvidencias = TableClient.fromConnectionString(connectionString, 'EvidenciasTable');
+
+            const codigoAuditoria = status === 'PRODUTIVO' ? 'FORA TOA' : (codigo_baixa || 'N/D');
+
+            const entidadeEvidencia = {
+                PartitionKey: partitionKeyOriginal,
+                RowKey: `${rKey}_${Date.now()}`, // Permite múltiplos envios se necessário
+                contrato: contrato.trim(),
+                latitude: localizacao ? String(localizacao.latitude) : '',
+                longitude: localizacao ? String(localizacao.longitude) : '',
+                localizacao: localizacao ? JSON.stringify(localizacao) : '',
+                dataHora: payload.data_conclusao || new Date().toISOString(),
+                codigoBaixa: codigoAuditoria,
+                urlsFotos: JSON.stringify(urlsFotos),
+                endereco: enderecoOriginal,
+                observacao: obsMesa
+            };
+
+            await clientEvidencias.upsertEntity(entidadeEvidencia, "Replace");
+
+            return { status: 200, jsonBody: { success: true, message: "Atendimento gravado e sincronizado com sucesso." } };
+
         } catch (error) {
-            context.log("Erro no servidor: ", error.message);
-            return { status: 500, json: { error: error.message } };
+            context.error("Erro interno ao concluir atendimento:", error);
+            return {
+                status: 500,
+                jsonBody: { error: "Erro crítico no servidor ao registrar atendimento." }
+            };
         }
     }
 });
