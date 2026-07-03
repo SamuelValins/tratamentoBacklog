@@ -18,7 +18,7 @@ app.http('obterFiltros', {
 
             const tableClient = TableClient.fromConnectionString(connectionString, 'ContratosRetirada');
             
-            // Projeta apenas as colunas necessárias para reduzir consumo de banda e processamento
+            // Projeta apenas as colunas necessárias para reduzir consumo de banda e custos
             const entities = tableClient.listEntities({
                 queryOptions: { select: ['Cidade', 'MesSafra'] }
             });
