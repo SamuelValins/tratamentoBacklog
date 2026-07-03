@@ -1,9 +1,9 @@
 const { app } = require('@azure/functions');
-const { TableClient, AzureNamedKeyCredential } = require('@azure/data-tables');
+const { TableClient } = require('@azure/data-tables');
 
 // Conexão com o Azure Table Storage (puxa das variáveis de ambiente do Azure)
 const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING;
-const tableName = "ContratosRetirada"; // Nome da tabela que você criará no Azure
+const tableName = "ContratosRetirada"; // Nome da tabela no Azure
 
 app.http('obterContratos', {
     methods: ['GET'],
@@ -32,11 +32,11 @@ app.http('obterContratos', {
 
             for await (const entity of entities) {
                 contratos.push({
-                    contrato: entity.rowKey, // Código do contrato
+                    contrato: entity.rowKey, // rowKey retornado em minúsculo pelo SDK
                     titular: entity.titular,
                     endereco: entity.endereco,
                     bairro: entity.bairro,
-                    cidade: entity.PartitionKey,
+                    cidade: entity.partitionKey, // Corrigido para partitionKey em minúsculo
                     complemento: entity.complemento || "",
                     tel_res: entity.tel_residencial || "",
                     tel_cel: entity.tel_celular || "",
