@@ -9,8 +9,9 @@ app.http('obterContratos', {
             const cidade = request.query.get('cidade');
             const safra = request.query.get('safra');
             const tipo = request.query.get('tipo');
+            const limit = request.query.get('limit'); // Novo parâmetro de limite
 
-            context.log(`[obterContratos] Buscando - Cidade: ${cidade}, Safra: ${safra}, Tipo: ${tipo}`);
+            context.log(`[obterContratos] Buscando - Cidade: ${cidade}, Safra: ${safra}, Tipo: ${tipo}, Limite: ${limit}`);
 
             if (!cidade || !safra) {
                 return {
@@ -43,7 +44,7 @@ app.http('obterContratos', {
                 queryFilter += ` and (MesSafra eq '${safraFiltro}' or MesSafra eq '${safraCurta}')`;
             }
 
-            // Filtro de Desconexão com mapeamento exato do Banco Azure
+            // Filtro de Desconexão com mapeamento exato do Banco Azure (Sem acentos e formatos específicos)
             if (tipo && tipo !== 'TODOS') {
                 const tipoUpper = tipo.trim().toUpperCase();
                 if (tipoUpper.includes('OPC')) {
@@ -59,9 +60,17 @@ app.http('obterContratos', {
                 queryOptions: { filter: queryFilter }
             });
 
+            // Aplica a limitação diretamente no loop de leitura para otimizar desempenho e custo do banco
+            let maxCount = limit && limit !== 'ALL' ? parseInt(limit, 10) : null;
+            let currentCount = 0;
+
             const contratosFormatados = [];
 
             for await (const entity of entities) {
+                if (maxCount !== null && currentCount >= maxCount) {
+                    break;
+                }
+
                 const macString = entity.Mac || '';
                 const qtdEquip = macString ? macString.split('/').length : 1;
 
@@ -77,11 +86,13 @@ app.http('obterContratos', {
                     tel_cel: entity.TelCel || '',
                     qtd_equip: qtdEquip,
                     modelo_equip: entity.ModeloEquip || entity.FamiliaEquip || 'N/D',
-                    mac: entity.Mac || 'N/D', // Captura o MAC para exibição via clique
+                    mac: entity.Mac || 'MAC não disponível para este equipamento', // Captura o MAC para exibição via clique
                     obs: entity.Obs || '',
                     lat: null, 
                     lon: null
                 });
+
+                currentCount++;
             }
 
             return { status: 200, jsonBody: contratosFormatados };
