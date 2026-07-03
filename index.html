@@ -181,7 +181,11 @@ button {
         
         <label>Mês Safra</label>
         <select id="select-safra">
-            <option value="">CARREGANDO SAFRAS... ⏳</option>
+            <option value="TODOS">TODOS</option>
+            <option value="1º mês">1º mês</option>
+            <option value="2º mês">2º mês</option>
+            <option value="3º mês">3º mês</option>
+            <option value="4º mês">4º mês</option>
         </select>
         
         <label>Tipo de Desconexão</label>
@@ -445,7 +449,7 @@ document.getElementById('btn-carregar').addEventListener('click', async () => {
     renderizarContratos(blocoExibicao);
     indexExibicaoAtual += limiteExibicao;
 
-    // Atualiza visualmente o botão indicando quantos contratos restam na fila geral
+    // Atuliza visualmente o botão indicando quantos contratos restam na fila geral
     if (indexExibicaoAtual < todosContratosOrdenados.length) {
         const restantes = todosContratosOrdenados.length - indexExibicaoAtual;
         btnCarregar.textContent = `CARREGAR PRÓXIMOS ${Math.min(limiteExibicao, restantes)} CONTRATOS 🧭`;
@@ -928,7 +932,7 @@ async function carregarFiltrosDinamicos() {
             const data = await response.json();
 
             // Popula Safras
-            selectSafra.innerHTML = '<option value="TODOS">TODOS (EXIBIR TODOS)</option>';
+            selectSafra.innerHTML = '<option value="TODOS">TODOS</option>';
             data.safras.forEach(safra => {
                 const opt = document.createElement('option');
                 opt.value = safra;
