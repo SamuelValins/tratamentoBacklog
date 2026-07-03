@@ -6,13 +6,11 @@ app.http('obterContratos', {
     authLevel: 'anonymous',
     handler: async (request, context) => {
         try {
-            // Em Azure Functions v4, request.query é um objeto URLSearchParams nativo.
-            // O uso de .get() é blindado e imune a falhas de parsing de URL.
             const cidade = request.query.get('cidade');
             const safra = request.query.get('safra');
             const tipo = request.query.get('tipo');
 
-            context.log(`[obterContratos] Iniciando busca - Cidade: ${cidade}, Safra: ${safra}, Tipo: ${tipo}`);
+            context.log(`[obterContratos] Buscando Cidade: ${cidade}, Safra: ${safra}`);
 
             if (!cidade || !safra) {
                 return {
@@ -21,14 +19,16 @@ app.http('obterContratos', {
                 };
             }
 
-            // Suporte duplo para conexão: tenta customizado primeiro, depois a conexão de sistema padrão
+            // Lê as conexões disponíveis no ambiente
             const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING || process.env.AzureWebJobsStorage;
             
             if (!connectionString) {
-                context.error("[obterContratos] Erro: Nenhuma Connection String configurada!");
                 return {
                     status: 500,
-                    jsonBody: { error: "Configuração ausente: AZURE_STORAGE_CONNECTION_STRING ou AzureWebJobsStorage não definidos no ambiente." }
+                    jsonBody: { 
+                        error: "Connection string não encontrada no ambiente do Azure.",
+                        diagnostico: "Variável AZURE_STORAGE_CONNECTION_STRING não foi propagada ou não existe."
+                    }
                 };
             }
 
@@ -39,7 +39,6 @@ app.http('obterContratos', {
             const matchDigito = safra.match(/\d+/);
             const safraCurta = matchDigito ? matchDigito[0] : safraFiltro;
 
-            // Filtro flexível para aceitar variações de escrita (ex: "2º mês" ou "2")
             let queryFilter = `Cidade eq '${cidadeUpper}' and (MesSafra eq '${safraFiltro}' or MesSafra eq '${safraCurta}')`;
 
             if (tipo && tipo !== 'TODOS') {
@@ -79,9 +78,16 @@ app.http('obterContratos', {
 
         } catch (error) {
             context.error("[obterContratos] Erro Crítico:", error);
+            
+            // Retorna o erro detalhado diretamente ao frontend para podermos ver o erro no console/rede
             return {
                 status: 500,
-                jsonBody: { error: error.message || "Erro interno ao listar os contratos." }
+                jsonBody: { 
+                    error: `Falha na execução: ${error.message}`,
+                    detalhes: error.toString(),
+                    stack: error.stack,
+                    has_connection_string: !!(process.env.AZURE_STORAGE_CONNECTION_STRING || process.env.AzureWebJobsStorage)
+                }
             };
         }
     }
