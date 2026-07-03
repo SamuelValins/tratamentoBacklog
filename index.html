@@ -177,9 +177,7 @@ button {
         <input type="text" id="input-tecnico" placeholder="DIGITE SEU LOGIN">
         
         <label>Cidade de Atuação</label>
-        <select id="select-cidade">
-            <option value="">CARREGANDO CIDADES... ⏳</option>
-        </select>
+        <input type="text" id="input-cidade" placeholder="DIGITE A CIDADE" oninput="this.value = normalizarInputCidade(this.value)">
         
         <label>Mês Safra</label>
         <select id="select-safra">
@@ -191,6 +189,16 @@ button {
             <option value="TODOS">TODOS</option>
             <option value="OPÇÃO">OPÇÃO</option>
             <option value="INADIMPLÊNCIA">INADIMPLÊNCIA</option>
+        </select>
+
+        <label>Quantidade de Contratos a Buscar</label>
+        <select id="select-quantidade">
+            <option value="10">10 Contratos</option>
+            <option value="20">20 Contratos</option>
+            <option value="30" selected>30 Contratos</option>
+            <option value="50">50 Contratos</option>
+            <option value="100">100 Contratos</option>
+            <option value="ALL">Exibir Todos</option>
         </select>
         
         <button id="btn-carregar" class="btn-primary">CARREGAR FILA E ORDENAR POR PROXIMIDADE</button>
@@ -262,6 +270,14 @@ function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// --- NORMALIZADOR DE ENTRADA DE CIDADE (SEM ACENTOS E MAIÚSCULAS) ---
+function normalizarInputCidade(val) {
+    return val.normalize("NFD")
+              .replace(/[\u0300-\u036f]/g, "")
+              .replace(/[^a-zA-Z\s]/g, "")
+              .toUpperCase();
+}
+
 // --- GEOCODIFICADOR EM SEGUNDO PLANO (NOMINATIM OSM) ---
 async function geocodificarFila(contratos) {
     const total = contratos.length;
@@ -312,26 +328,27 @@ async function atualizarGpsGlobal() {
 
 // --- GERADOR DE MENSAGEM DO WHATSAPP (MOLDE EXACT DO CLIENTE) ---
 function gerarMensagemWhatsapp(endereco, complemento, bairro, cidade, contrato) {
-    const enderecoCompleto = `${endereco}${complemento ? ' - ' + complemento : ''}${bairro ? ', ' + bairro : ''}, ${cidade}`.toUpperCase();
+    const enderecoCompleto = `${endereco}${complemento ? ' - ' + complemento : ''}${bairro ? ' - ' + bairro : ''}, ${cidade}`.toUpperCase();
     return `Olá, tudo bem? Sou da central de apoio técnico da Claro. Gostaria de tratar a respeito da retirada de equipamentos no endereço: ${enderecoCompleto}. Poderia nos confirmar se este endereço está correto ou se houve alguma mudança? (Contrato: ${contrato}).`;
 }
 
-// --- CONTROLE DE CARREGAMENTO E PAGINAÇÃO (30 EM 30 POR PROXIMIDADE) ---
+// --- CONTROLE DE CARREGAMENTO E PAGINAÇÃO (30 EM 30 POR PROXIMIDADE COM PREFERÊNCIA A OPÇÃO) ---
 document.getElementById('btn-carregar').addEventListener('click', async () => {
     const login = document.getElementById('input-tecnico').value.trim();
-    const cidade = document.getElementById('select-cidade').value;
+    const cidade = document.getElementById('input-cidade').value.trim();
     const safra = document.getElementById('select-safra').value;
     const tipo = document.getElementById('select-tipo').value;
+    const limit = document.getElementById('select-quantidade').value; // Quantidade de contratos
 
     if (!login || !cidade || !safra) {
-        alert("Por favor, preencha todos os campos do painel antes de prosseguir.");
+        alert("Por favor, preencha o login, a cidade e a safra no painel de configuração.");
         return;
     }
 
     localStorage.setItem('login_tecnico', login);
 
     const btnCarregar = document.getElementById('btn-carregar');
-    const queryAtual = `${cidade}-${safra}-${tipo}`;
+    const queryAtual = `${cidade}-${safra}-${tipo}-${limit}`;
 
     // Se mudou o filtro ou se a fila está vazia, realiza uma nova busca do zero
     if (queryAtual !== queryAnterior || todosContratosOrdenados.length === 0) {
@@ -359,7 +376,7 @@ document.getElementById('btn-carregar').addEventListener('click', async () => {
 
         let contratosFiltrados = [];
         try {
-            const response = await fetch(`/api/obterContratos?cidade=${cidade}&safra=${safra}&tipo=${tipo}`);
+            const response = await fetch(`/api/obterContratos?cidade=${cidade}&safra=${safra}&tipo=${tipo}&limit=${limit}`);
             if (response.ok) {
                 contratosFiltrados = await response.json();
             } else {
@@ -376,8 +393,8 @@ document.getElementById('btn-carregar').addEventListener('click', async () => {
             return;
         }
 
-        // Geocodifica a fila em tempo real caso a localização do técnico esteja ativa e tenhamos contratos
         if (contratosFiltrados.length > 0) {
+            // Se o GPS estiver ativo, mapeamos as distâncias
             if (localizacaoTecnico) {
                 await geocodificarFila(contratosFiltrados);
                 
@@ -390,13 +407,26 @@ document.getElementById('btn-carregar').addEventListener('click', async () => {
                             item.lon
                         );
                     } else {
-                        item.distancia = 999999; // Sem GPS ou falha no mapeamento vai para o final
+                        item.distancia = 999999;
                     }
                 });
-                
-                // Ordena dos mais próximos aos mais distantes
-                contratosFiltrados.sort((a, b) => a.distancia - b.distancia);
             }
+
+            // REGRA DE ORDENAÇÃO: Preferência absoluta para "OPÇÃO" em relação a "INADIMPLÊNCIA"
+            contratosFiltrados.sort((a, b) => {
+                const isAOpcao = String(a.tipo).toUpperCase().includes("OPC");
+                const isBOpcao = String(b.tipo).toUpperCase().includes("OPC");
+
+                if (isAOpcao && !isBOpcao) return -1; // "OPÇÃO" ganha e sobe na fila
+                if (!isAOpcao && isBOpcao) return 1;  // "INAD" desce na fila
+
+                // Se forem do mesmo tipo de desconexão, desempata pela distância por Haversine
+                if (localizacaoTecnico && a.distancia !== undefined && b.distancia !== undefined) {
+                    return a.distancia - b.distancia;
+                }
+                return 0;
+            });
+
             todosContratosOrdenados = contratosFiltrados;
         }
     }
@@ -446,7 +476,7 @@ function renderizarContratos(contratos) {
         card.className = 'contrato-card';
         card.id = `card-${item.contrato}`;
 
-        const tagClass = item.tipo.includes('OPCAO') ? 'tipo-opcao' : 'tipo-inad';
+        const tagClass = item.tipo.includes('OPC') ? 'tipo-opcao' : 'tipo-inad';
         const distTexto = (item.distancia && item.distancia !== 999999) ? ` • 📍 A ${item.distancia.toFixed(2)} Km` : "";
 
         // Formata os números de telefone para links limpos do WhatsApp
@@ -890,22 +920,12 @@ function iniciarAtendimento(contratoId) {
 
 // --- FUNÇÃO PARA POPULAR FILTROS DINAMICAMENTE DA TABELA DO AZURE ---
 async function carregarFiltrosDinamicos() {
-    const selectCidade = document.getElementById('select-cidade');
     const selectSafra = document.getElementById('select-safra');
 
     try {
         const response = await fetch('/api/obterFiltros');
         if (response.ok) {
             const data = await response.json();
-
-            // Popula Cidades
-            selectCidade.innerHTML = '<option value="">SELECIONE A CIDADE</option>';
-            data.cidades.forEach(cidade => {
-                const opt = document.createElement('option');
-                opt.value = cidade;
-                opt.textContent = cidade;
-                selectCidade.appendChild(opt);
-            });
 
             // Popula Safras
             selectSafra.innerHTML = '<option value="TODOS">TODOS (EXIBIR TODOS)</option>';
@@ -916,12 +936,10 @@ async function carregarFiltrosDinamicos() {
                 selectSafra.appendChild(opt);
             });
         } else {
-            selectCidade.innerHTML = '<option value="">Erro ao carregar cidades</option>';
             selectSafra.innerHTML = '<option value="">Erro ao carregar safras</option>';
         }
     } catch (err) {
         console.error("Falha ao buscar filtros dinâmicos na API:", err);
-        selectCidade.innerHTML = '<option value="">Falha de conexão com a API</option>';
         selectSafra.innerHTML = '<option value="">Falha de conexão com a API</option>';
     }
 }
