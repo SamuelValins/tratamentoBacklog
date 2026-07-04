@@ -9,9 +9,9 @@ app.http('obterContratos', {
             const cidade = request.query.get('cidade');
             const safra = request.query.get('safra');
             const tipo = request.query.get('tipo');
-            const limit = request.query.get('limit'); // Novo parâmetro de limite
+            const limit = request.query.get('limit'); 
 
-            context.log(`[obterContratos] Buscando - Cidade: ${cidade}, Safra: ${safra}, Tipo: ${tipo}, Limite: ${limit}`);
+            context.log(`[obterContratos] Iniciando busca - Cidade: ${cidade}, Safra: ${safra}, Tipo: ${tipo}, Limite: ${limit}`);
 
             if (!cidade || !safra) {
                 return {
@@ -44,23 +44,28 @@ app.http('obterContratos', {
                 queryFilter += ` and (MesSafra eq '${safraFiltro}' or MesSafra eq '${safraCurta}')`;
             }
 
-            // Filtro de Desconexão com mapeamento exato do Banco Azure (Sem acentos e formatos específicos)
+            // Filtro de Desconexão Normalizado (Remove acentos e "ç" para correspondência perfeita)
             if (tipo && tipo !== 'TODOS') {
-                const tipoUpper = tipo.trim().toUpperCase();
-                if (tipoUpper.includes('OPC')) {
+                const tipoNormalizado = tipo.trim()
+                    .normalize("NFD")
+                    .replace(/[\u0300-\u036f]/g, "") // Remove acentos
+                    .toUpperCase();
+
+                if (tipoNormalizado.includes('OPCA') || tipoNormalizado.includes('OPCO')) {
                     queryFilter += ` and TipoDesconexao eq 'DESCONECTADO - OPCAO'`;
-                } else if (tipoUpper.includes('INAD')) {
+                } else if (tipoNormalizado.includes('INAD')) {
                     queryFilter += ` and TipoDesconexao eq 'DESCONECTADO - INADIMPLENCIA (TOTAL)'`;
                 } else {
-                    queryFilter += ` and TipoDesconexao eq '${tipoUpper}'`;
+                    queryFilter += ` and TipoDesconexao eq '${tipoNormalizado}'`;
                 }
             }
+
+            context.log(`[obterContratos] Filtro OData gerado: ${queryFilter}`);
 
             const entities = tableClient.listEntities({
                 queryOptions: { filter: queryFilter }
             });
 
-            // Aplica a limitação diretamente no loop de leitura para otimizar desempenho e custo do banco
             let maxCount = limit && limit !== 'ALL' ? parseInt(limit, 10) : null;
             let currentCount = 0;
 
@@ -86,7 +91,7 @@ app.http('obterContratos', {
                     tel_cel: entity.TelCel || '',
                     qtd_equip: qtdEquip,
                     modelo_equip: entity.ModeloEquip || entity.FamiliaEquip || 'N/D',
-                    mac: entity.Mac || 'MAC não disponível para este equipamento', // Captura o MAC para exibição via clique
+                    mac: entity.Mac || 'MAC não disponível para este equipamento', 
                     obs: entity.Obs || '',
                     lat: null, 
                     lon: null
