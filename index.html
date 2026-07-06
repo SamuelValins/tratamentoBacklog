@@ -503,8 +503,23 @@ document.getElementById('btn-carregar').addEventListener('click', async () => {
 
         // Se encontrou dados, executa a geocodificação e constrói a cadeia de proximidade TSP
         if (contratosFiltrados.length > 0) {
+            // Calcula a distância direta de você para cada cliente (antes de ordenar em cadeia)
             if (localizacaoTecnico) {
                 await geocodificarFila(contratosFiltrados);
+
+                contratosFiltrados.forEach(item => {
+                    if (item.lat && item.lon) {
+                        item.distanciaDireta = calcularDistanciaKm(
+                            localizacaoTecnico.latitude, 
+                            localizacaoTecnico.longitude, 
+                            item.lat, 
+                            item.lon
+                        );
+                    } else {
+                        item.distanciaDireta = 999999;
+                    }
+                });
+
                 todosContratosOrdenados = ordenarFilaNearestNeighbor(contratosFiltrados, localizacaoTecnico.latitude, localizacaoTecnico.longitude);
             } else {
                 todosContratosOrdenados = ordenarFilaNearestNeighbor(contratosFiltrados, null, null);
@@ -559,13 +574,14 @@ function renderizarContratos(contratos) {
 
         const tagClass = item.tipo.includes('OPC') ? 'tipo-opcao' : 'tipo-inad';
         
-        // Inteligência de Distância de Rota (Diferencia ponto de partida de paradas consecutivas)
+        // Inteligência de Distância de Rota (Diferencia ponto de partida de paradas consecutivas + exibe distância de você)
         let distTexto = "";
-        if (item.distancia && item.distancia !== 999999) {
-            if (index === 0 && indexExibicaoAtual === limiteExibicao) {
-                distTexto = ` • 📍 A ${item.distancia.toFixed(2)} Km de sua posição inicial`;
-            } else {
-                distTexto = ` • 📍 A ${item.distancia.toFixed(2)} Km do cliente anterior`;
+        if (item.distanciaDireta && item.distanciaDireta !== 999999) {
+            distTexto = ` • 📍 A ${item.distanciaDireta.toFixed(2)} Km de você`;
+            
+            // Adiciona a distância sequencial intermediária do cliente anterior se forem valores diferentes
+            if (item.distancia && item.distancia !== 999999 && Math.abs(item.distancia - item.distanciaDireta) > 0.01) {
+                distTexto += ` (a ${item.distancia.toFixed(2)} Km do cliente anterior)`;
             }
         }
 
