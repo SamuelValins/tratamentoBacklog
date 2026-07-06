@@ -7,7 +7,7 @@ app.http('obterContratos', {
     handler: async (request, context) => {
         try {
             const cidade = request.query.get('cidade');
-            const safra = request.query.get('safra');
+            const safra = request.query.get('safra'); // Pode conter valores múltiplos como "1º mês,2º mês"
             const tipo = request.query.get('tipo');
             const limit = request.query.get('limit'); 
 
@@ -36,19 +36,29 @@ app.http('obterContratos', {
             // Filtro da Cidade
             let queryFilter = `Cidade eq '${cidadeUpper}'`;
 
-            // Filtro de Safra (Ignora se for "TODOS")
+            // Filtro de Safra (Suporta múltiplos valores separados por vírgula)
             if (safra && safra !== 'TODOS') {
-                let safraFiltro = safra.trim();
-                const matchDigito = safra.match(/\d+/);
-                const safraCurta = matchDigito ? matchDigito[0] : safraFiltro;
-                queryFilter += ` and (MesSafra eq '${safraFiltro}' or MesSafra eq '${safraCurta}')`;
+                const safrasArray = safra.split(',');
+                
+                // Constrói condições OR dinâmicas para cada safra selecionada no lote
+                const orConditions = safrasArray.map(s => {
+                    const safraFiltro = s.trim();
+                    const matchDigito = safraFiltro.match(/\d+/);
+                    const safraCurta = matchDigito ? matchDigito[0] : safraFiltro;
+                    return `(MesSafra eq '${safraFiltro}' or MesSafra eq '${safraCurta}')`;
+                }).join(' or ');
+
+                queryFilter += ` and (${orConditions})`;
+            } else {
+                // Se for TODOS, filtra e ignora todos os contratos classificados como expurgados no banco
+                queryFilter += ` and MesSafra ne 'EXPURGADO' and MesSafra ne 'EXPURGADO SAFRA'`;
             }
 
-            // Filtro de Desconexão Normalizado (Remove acentos e "ç" para correspondência perfeita)
+            // Filtro de Desconexão Normalizado
             if (tipo && tipo !== 'TODOS') {
                 const tipoNormalizado = tipo.trim()
                     .normalize("NFD")
-                    .replace(/[\u0300-\u036f]/g, "") // Remove acentos
+                    .replace(/[\u0300-\u036f]/g, "") 
                     .toUpperCase();
 
                 if (tipoNormalizado.includes('OPCA') || tipoNormalizado.includes('OPCO')) {
