@@ -288,6 +288,25 @@ function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// --- HIGIENIZADOR INTELIGENTE DE ENDEREÇOS (EVITA FALLBACK DE CENTROIDE) ---
+function limparEnderecoParaGeocodificacao(endereco) {
+    if (!endereco) return "";
+    let limpo = endereco.toUpperCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove acentos
+        .replace(/\bQD\b.*/gi, "") // Remove Quadra e tudo após
+        .replace(/\bLT\b.*/gi, "") // Remove Lote e tudo após
+        .replace(/\bAP\b.*/gi, "") // Remove Apartamento e tudo após
+        .replace(/\bBL\b.*/gi, "") // Remove Bloco e tudo após
+        .replace(/\bCASA\b.*/gi, "") // Remove Casa e tudo após
+        .replace(/\bAPTO\b.*/gi, "") // Remove Apto e tudo após
+        .replace(/\bCONDOMINIO\b.*/gi, "") // Remove Condominio e tudo após
+        .replace(/\bRESIDENCIAL\b.*/gi, "") // Remove Residencial e tudo após
+        .replace(/ - .*/g, "") // Remove complementos após hífen
+        .replace(/\s+/g, " ") // Remove espaços múltiplos
+        .trim();
+    return limpo;
+}
+
 // --- NORMALIZADOR DE ENTRADA DE CIDADE (SEM ACENTOS E MAIÚSCULAS) ---
 function normalizarInputCidade(val) {
     if (!val) return "";
@@ -298,7 +317,7 @@ function normalizarInputCidade(val) {
               .trim();
 }
 
-// --- GEOCODIFICADOR EM SEGUNDO PLANO (NOMINATIM OSM) ---
+// --- GEOCODIFICADOR EM SEGUNDO PLANO COM DETECÇÃO E BLOQUEIO DE CENTROIDE ---
 async function geocodificarFila(contratos) {
     const total = contratos.length;
     const btnCarregar = document.getElementById('btn-carregar');
@@ -307,8 +326,12 @@ async function geocodificarFila(contratos) {
         const item = contratos[i];
         btnCarregar.textContent = `MAPEANDO ENDEREÇOS: ${i + 1} de ${total}...`;
         
-        // Monta a busca inteligente baseada em rua + bairro + cidade no estado de SP
-        const busca = `${item.endereco}, ${item.bairro || ''}, ${item.cidade}, SP, Brasil`;
+        // 1. Limpa o endereço para remover descritivos que quebram o Nominatim do OpenStreetMap
+        const enderecoLimpo = limparEnderecoParaGeocodificacao(item.endereco);
+        
+        // 2. Busca combinando apenas rua + cidade (evita bairros não mapeados que geram erro na rua)
+        const busca = `${enderecoLimpo}, ${item.cidade}, SP, Brasil`;
+        
         try {
             const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(busca)}&limit=1`, {
                 headers: { 'User-Agent': 'TratamentoBacklogApp/1.0' }
@@ -316,15 +339,28 @@ async function geocodificarFila(contratos) {
             if (response.ok) {
                 const data = await response.json();
                 if (data && data.length > 0) {
-                    item.lat = parseFloat(data[0].lat);
-                    item.lon = parseFloat(data[0].lon);
+                    const res = data[0];
+                    
+                    // 3. Valida se o resultado é uma cidade/estado inteira (fallback inválido de rua)
+                    const tipoResultado = res.type || "";
+                    const classeResultado = res.class || "";
+                    const ehCentroid = (classeResultado === "place" && (tipoResultado === "city" || tipoResultado === "town" || tipoResultado === "municipality" || tipoResultado === "state"));
+
+                    if (!ehCentroid) {
+                        item.lat = parseFloat(res.lat);
+                        item.lon = parseFloat(res.lon);
+                        item.geocodificadoComSucesso = true;
+                    } else {
+                        item.lat = null;
+                        item.lon = null;
+                        item.geocodificadoComSucesso = false;
+                    }
                 }
             }
         } catch (e) {
             console.error("Erro ao geocodificar contrato: ", item.contrato, e);
         }
-        // Delay para respeitar as diretrizes de taxa de uso da API gratuita do OpenStreetMap
-        await delay(100);
+        await delay(150); // Delay seguro de transação
     }
 }
 
@@ -352,7 +388,7 @@ function gerarMensagemWhatsapp(endereco, complemento, bairro, cidade, contrato) 
     return `Olá, tudo bem? Sou da central de apoio técnico da Claro. Gostaria de tratar a respeito da retirada de equipamentos no endereço: ${enderecoCompleto}. Poderia nos confirmar se este endereço está correto ou se houve alguma mudança? (Contrato: ${contrato}).`;
 }
 
-// --- ALGORITMO TSP SEQUENCIAL NEAREST-NEIGHBOR (CADEIA DE PROXIMIDADE) ---
+// --- ALGORITMO TSP SEQUENCIAL NEAREST-NEIGHBOR COM SUPORTE A FILTRO DE CENTROIDE ---
 function ordenarFilaNearestNeighbor(contratos, startLat, startLon) {
     if (!contratos || contratos.length === 0) return [];
     
@@ -370,9 +406,9 @@ function ordenarFilaNearestNeighbor(contratos, startLat, startLon) {
     const naoVisitados = [];
     const semCoordenadas = [];
 
-    // Separa os contratos que têm coordenadas válidas dos que não têm
+    // Filtra e separa os contratos localizados com sucesso dos centroides falhos
     contratos.forEach(c => {
-        if (c.lat && c.lon) {
+        if (c.lat && c.lon && c.geocodificadoComSucesso !== false) {
             naoVisitados.push(c);
         } else {
             semCoordenadas.push(c);
@@ -442,7 +478,7 @@ function ordenarFilaNearestNeighbor(contratos, startLat, startLon) {
         }
     }
 
-    // Contratos que falharam na geocodificação vão ao final ordenados por tipo
+    // Contratos sem coordenadas (falha na geocodificação ou centroides bloqueados) vão para o final ordenados por tipo
     const semCoordenadasOrdenados = semCoordenadas.sort((a, b) => {
         const isAOpcao = String(a.tipo).toUpperCase().includes("OPC");
         const isBOpcao = String(b.tipo).toUpperCase().includes("OPC");
@@ -545,7 +581,7 @@ document.getElementById('btn-carregar').addEventListener('click', async () => {
                 await geocodificarFila(contratosFiltrados);
 
                 contratosFiltrados.forEach(item => {
-                    if (item.lat && item.lon) {
+                    if (item.lat && item.lon && item.geocodificadoComSucesso !== false) {
                         item.distanciaDireta = calcularDistanciaKm(
                             localizacaoTecnico.latitude, 
                             localizacaoTecnico.longitude, 
