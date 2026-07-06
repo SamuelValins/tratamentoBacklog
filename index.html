@@ -132,7 +132,7 @@ button {
 .contrato-header {
     display: flex;
     justify-content: space-between;
-    border-bottom: 1px dashed #334155;
+    border-bottom: 1px solid #334155;
     padding-bottom: 8px;
     margin-bottom: 8px;
 }
@@ -388,7 +388,7 @@ function gerarMensagemWhatsapp(endereco, complemento, bairro, cidade, contrato) 
     return `Olá, tudo bem? Sou da central de apoio técnico da Claro. Gostaria de tratar a respeito da retirada de equipamentos no endereço: ${enderecoCompleto}. Poderia nos confirmar se este endereço está correto ou se houve alguma mudança? (Contrato: ${contrato}).`;
 }
 
-// --- ALGORITMO TSP SEQUENCIAL NEAREST-NEIGHBOR COM SUPORTE A FILTRO DE CENTROIDE ---
+// --- ALGORITMO TSP SEQUENCIAL NEAREST-NEIGHBOR (CADEIA DE PROXIMIDADE PURA) ---
 function ordenarFilaNearestNeighbor(contratos, startLat, startLon) {
     if (!contratos || contratos.length === 0) return [];
     
@@ -406,11 +406,14 @@ function ordenarFilaNearestNeighbor(contratos, startLat, startLon) {
     const naoVisitados = [];
     const semCoordenadas = [];
 
-    // Filtra e separa os contratos localizados com sucesso dos centroides falhos
+    // Separa os contratos que têm coordenadas válidas dos que não têm, calculando a distância direta inicial de você
     contratos.forEach(c => {
         if (c.lat && c.lon && c.geocodificadoComSucesso !== false) {
+            c.distanciaDireta = calcularDistanciaKm(startLat, startLon, c.lat, c.lon);
             naoVisitados.push(c);
         } else {
+            c.distanciaDireta = 999999;
+            c.distancia = 999999;
             semCoordenadas.push(c);
         }
     });
@@ -418,31 +421,16 @@ function ordenarFilaNearestNeighbor(contratos, startLat, startLon) {
     const resultadoOrdenado = [];
     let pontoAtual = { lat: startLat, lon: startLon };
 
-    // 1. ESCOLHA DO PRIMEIRO CLIENTE: Buscamos o contrato "OPÇÃO" mais próximo de você
+    // 1. ESCOLHA DO PRIMEIRO CLIENTE: Puro critério de proximidade física a você (GPS)
     let primeiroContratoIndex = -1;
     let menorDistanciaInicio = Infinity;
 
     for (let i = 0; i < naoVisitados.length; i++) {
         const c = naoVisitados[i];
-        const isOpcao = String(c.tipo).toUpperCase().includes("OPC");
-        if (isOpcao) {
-            const dist = calcularDistanciaKm(pontoAtual.lat, pontoAtual.lon, c.lat, c.lon);
-            if (dist < menorDistanciaInicio) {
-                menorDistanciaInicio = dist;
-                primeiroContratoIndex = i;
-            }
-        }
-    }
-
-    // Fallback: Se não houver nenhuma OPÇÃO com GPS, pega o INADIMPLÊNCIA mais próximo de você
-    if (primeiroContratoIndex === -1) {
-        for (let i = 0; i < naoVisitados.length; i++) {
-            const c = naoVisitados[i];
-            const dist = calcularDistanciaKm(pontoAtual.lat, pontoAtual.lon, c.lat, c.lon);
-            if (dist < menorDistanciaInicio) {
-                menorDistanciaInicio = dist;
-                primeiroContratoIndex = i;
-            }
+        const dist = calcularDistanciaKm(pontoAtual.lat, pontoAtual.lon, c.lat, c.lon);
+        if (dist < menorDistanciaInicio) {
+            menorDistanciaInicio = dist;
+            primeiroContratoIndex = i;
         }
     }
 
@@ -451,7 +439,7 @@ function ordenarFilaNearestNeighbor(contratos, startLat, startLon) {
         const primeiro = naoVisitados.splice(primeiroContratoIndex, 1)[0];
         primeiro.distancia = menorDistanciaInicio; // Distância do técnico ao 1º cliente
         resultadoOrdenado.push(primeiro);
-        pontoAtual = { lat: primeiro.lat, lon: primeiro.lon };
+        pontoAtual = { lat: primeiro.lat, lon: primeiro.lon }; // Avança a posição de referência
     }
 
     // 2. CONSTRUÇÃO DA CADEIA (Next-Neighbor): Próximo é sempre o mais perto da parada anterior
@@ -576,23 +564,9 @@ document.getElementById('btn-carregar').addEventListener('click', async () => {
 
         // Se encontrou dados, executa a geocodificação e constrói a cadeia de proximidade TSP
         if (contratosFiltrados.length > 0) {
-            // Calcula a distância direta de você para cada cliente (antes de ordenar em cadeia)
+            // Se o GPS estiver ativo, mapeamos as distâncias
             if (localizacaoTecnico) {
                 await geocodificarFila(contratosFiltrados);
-
-                contratosFiltrados.forEach(item => {
-                    if (item.lat && item.lon && item.geocodificadoComSucesso !== false) {
-                        item.distanciaDireta = calcularDistanciaKm(
-                            localizacaoTecnico.latitude, 
-                            localizacaoTecnico.longitude, 
-                            item.lat, 
-                            item.lon
-                        );
-                    } else {
-                        item.distanciaDireta = 999999;
-                    }
-                });
-
                 todosContratosOrdenados = ordenarFilaNearestNeighbor(contratosFiltrados, localizacaoTecnico.latitude, localizacaoTecnico.longitude);
             } else {
                 todosContratosOrdenados = ordenarFilaNearestNeighbor(contratosFiltrados, null, null);
@@ -650,20 +624,22 @@ function renderizarContratos(contratos) {
         // Texto de distância direto do técnico e sequencial
         let distTexto = "";
         if (item.distanciaDireta && item.distanciaDireta !== 999999) {
-            distTexto = ` • 📍 A ${item.distanciaDireta.toFixed(2)} Km de sua posição inicial`;
+            distTexto = ` • 📍 A ${item.distanciaDireta.toFixed(2)} Km de você`;
             
-            // Adiciona a distância sequencial intermediária do cliente anterior se forem valores diferentes
+            // Adiciona a distância sequencial intermediária do cliente anterior se forem valores válidos e diferentes
             if (item.distancia && item.distancia !== 999999 && Math.abs(item.distancia - item.distanciaDireta) > 0.01) {
                 distTexto += ` (a ${item.distancia.toFixed(2)} Km do cliente anterior)`;
             }
         }
 
-        // Criando o card/badge de distância de você destacado no topo do card
+        // Criando o card/badge de distância de você destacado no topo de cada card
         const distPill = (item.distanciaDireta && item.distanciaDireta !== 999999) 
             ? `<div style="background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.2); padding: 8px 12px; border-radius: 6px; font-size: 12px; font-weight: bold; color: #38bdf8; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
                  📍 CONTRATO ${item.contrato} • ${item.distanciaDireta.toFixed(1)} KM DE VOCÊ
                </div>`
-            : "";
+            : `<div style="background: rgba(239, 68, 68, 0.05); border: 1px solid rgba(239, 68, 68, 0.15); padding: 8px 12px; border-radius: 6px; font-size: 12px; font-weight: bold; color: #f87171; margin-bottom: 12px;">
+                 ⚠️ ENDEREÇO NÃO MAPEADO NO GPS (VÁ PARA O FINAL)
+               </div>`;
 
         // Formata os números de telefone para links limpos do WhatsApp
         const limparNumero = (num) => String(num).replace(/\D/g, '');
