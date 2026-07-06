@@ -355,7 +355,7 @@ async function geocodificarFila(contratos) {
                 if (data && data.length > 0) {
                     const res = data[0];
                     
-                    // 3. Valida se o resultado é uma cidade/estado inteira (fallback de centroide de segurança)
+                    // 3. Valida se o resultado é uma cidade/estado inteira (fallback de centroid de segurança)
                     const tipoResultado = res.type || "";
                     const classeResultado = res.class || "";
                     const ehCentroid = (classeResultado === "place" && (tipoResultado === "city" || tipoResultado === "town" || tipoResultado === "municipality" || tipoResultado === "state"));
@@ -402,16 +402,14 @@ function gerarMensagemWhatsapp(endereco, complemento, bairro, cidade, contrato) 
     return `Olá, tudo bem? Sou da central de apoio técnico da Claro. Gostaria de tratar a respeito da retirada de equipamentos no endereço: ${enderecoCompleto}. Poderia nos confirmar se este endereço está correto ou se houve alguma mudança? (Contrato: ${contrato}).`;
 }
 
-// --- ALGORITMO TSP SEQUENCIAL NEAREST-NEIGHBOR (SÓ RETORNA OS CLUSTERIZADOS MAIS PRÓXIMOS) ---
+// --- ALGORITMO TSP SEQUENCIAL NEAREST-NEIGHBOR (CORRIGIDO E RESILIENTE) ---
 function ordenarFilaNearestNeighbor(contratos, startLat, startLon, limiteQtd) {
     if (!contratos || contratos.length === 0) return [];
     
-    // Filtro rígido de Entrada: Remove e descarta qualquer contrato que falhou no GPS
-    const naoVisitados = contratos.filter(c => c.lat && c.lon && c.geocodificadoComSucesso !== false);
-
-    // Fallback sem GPS: Ordena puramente por prioridade (OPÇÃO antes de INAD)
+    // CASO 1: Sem coordenadas do técnico (GPS desativado ou falhou)
+    // Retorna a lista completa ordenada por prioridade (OPÇÃO antes de INAD), sem descartar nada
     if (!startLat || !startLon) {
-        return naoVisitados.sort((a, b) => {
+        return [...contratos].sort((a, b) => {
             const isAOpcao = String(a.tipo).toUpperCase().includes("OPC");
             const isBOpcao = String(b.tipo).toUpperCase().includes("OPC");
             if (isAOpcao && !isBOpcao) return -1;
@@ -420,56 +418,73 @@ function ordenarFilaNearestNeighbor(contratos, startLat, startLon, limiteQtd) {
         });
     }
 
-    // 1. Calcula a distância direta inicial de você para todos os contratos válidos
-    naoVisitados.forEach(c => {
-        c.distanciaDireta = calcularDistanciaKm(startLat, startLon, c.lat, c.lon);
-    });
-
-    // 2. Ordena o pool completo pela distância direta de você (do mais próximo ao mais distante)
-    naoVisitados.sort((a, b) => a.distanciaDireta - b.distanciaDireta);
-
-    // 3. Seleciona apenas os N mais próximos para roteirização em cadeia (Descarte de distantes)
-    // Onde N é o limite do filtro. Permitimos até N + 3 se houver contratos adjacentes no mesmo bairro.
-    const N = limiteQtd === 'ALL' ? naoVisitados.length : parseInt(limiteQtd, 10);
-    const maxPermitido = limiteQtd === 'ALL' ? naoVisitados.length : (N + 3);
-
-    const candidatosProximos = naoVisitados.slice(0, Math.min(maxPermitido, naoVisitados.length));
-
-    if (candidatosProximos.length === 0) return [];
+    // CASO 2: GPS ativo. Separamos entre os mapeados com sucesso e os que falharam
+    const mapeados = contratos.filter(c => c.lat !== null && c.lon !== null && c.geocodificadoComSucesso !== false);
+    const naoMapeados = contratos.filter(c => c.lat === null || c.lon === null || c.geocodificadoComSucesso === false);
 
     const resultadoOrdenado = [];
     
-    // Escolhe o primeiro do lote como o absoluto mais próximo de você
-    const primeiro = candidatosProximos.shift();
-    primeiro.distancia = primeiro.distanciaDireta;
-    resultadoOrdenado.push(primeiro);
-    let pontoAtual = { lat: primeiro.lat, lon: primeiro.lon };
+    if (mapeados.length > 0) {
+        // 1. Calcula a distância direta de você para todos os contratos mapeados
+        mapeados.forEach(c => {
+            c.distanciaDireta = calcularDistanciaKm(startLat, startLon, c.lat, c.lon);
+        });
 
-    // 4. CONSTRUÇÃO DA CADEIA (Next-Neighbor): Próximo é sempre o mais perto da parada anterior
-    while (candidatosProximos.length > 0) {
-        let proximoIndex = -1;
-        let menorDistanciaLote = Infinity;
+        // 2. Ordena o pool completo pela distância direta de você
+        mapeados.sort((a, b) => a.distanciaDireta - b.distanciaDireta);
 
-        for (let i = 0; i < candidatosProximos.length; i++) {
-            const c = candidatosProximos[i];
-            const dist = calcularDistanciaKm(pontoAtual.lat, pontoAtual.lon, c.lat, c.lon);
-            if (dist < menorDistanciaLote) {
-                menorDistanciaLote = dist;
-                proximoIndex = i;
+        // 3. Seleciona os N mais próximos para roteirização em cadeia
+        const N = limiteQtd === 'ALL' ? mapeados.length : parseInt(limiteQtd, 10);
+        const maxPermitido = limiteQtd === 'ALL' ? mapeados.length : (N + 3);
+
+        const candidatosProximos = mapeados.slice(0, Math.min(maxPermitido, mapeados.length));
+        const restantesMapeados = mapeados.slice(Math.min(maxPermitido, mapeados.length));
+
+        if (candidatosProximos.length > 0) {
+            // Escolhe o primeiro do lote como o absoluto mais próximo de você
+            const primeiro = candidatosProximos.shift();
+            primeiro.distancia = primeiro.distanciaDireta;
+            resultadoOrdenado.push(primeiro);
+            let pontoAtual = { lat: primeiro.lat, lon: primeiro.lon };
+
+            // Construção da cadeia (Next-Neighbor)
+            while (candidatosProximos.length > 0) {
+                let proximoIndex = -1;
+                let menorDistanciaLote = Infinity;
+
+                for (let i = 0; i < candidatosProximos.length; i++) {
+                    const c = candidatosProximos[i];
+                    const dist = calcularDistanciaKm(pontoAtual.lat, pontoAtual.lon, c.lat, c.lon);
+                    if (dist < menorDistanciaLote) {
+                        menorDistanciaLote = dist;
+                        proximoIndex = i;
+                    }
+                }
+
+                if (proximoIndex !== -1) {
+                    const proximo = candidatosProximos.splice(proximoIndex, 1)[0];
+                    proximo.distancia = menorDistanciaLote;
+                    resultadoOrdenado.push(proximo);
+                    pontoAtual = { lat: proximo.lat, lon: proximo.lon };
+                } else {
+                    break;
+                }
             }
         }
-
-        if (proximoIndex !== -1) {
-            const proximo = candidatosProximos.splice(proximoIndex, 1)[0];
-            proximo.distancia = menorDistanciaLote; // Distância do cliente anterior a este cliente atual
-            resultadoOrdenado.push(proximo);
-            pontoAtual = { lat: proximo.lat, lon: proximo.lon }; // Avança a posição de referência
-        } else {
-            break;
+        
+        // Se houver contratos mapeados que ficaram fora do limite inicial de busca, anexa-os na sequência
+        if (restantesMapeados.length > 0) {
+            resultadoOrdenado.push(...restantesMapeados);
         }
     }
 
-    return resultadoOrdenado; // Retorna apenas os mais próximos encadeados sequencialmente
+    // 4. Contratos que falharam na geocodificação são inseridos no final da fila,
+    // garantindo que não sumam do painel do técnico
+    if (naoMapeados.length > 0) {
+        resultadoOrdenado.push(...naoMapeados);
+    }
+
+    return resultadoOrdenado;
 }
 
 // --- REGRA INTERATIVA DE SELEÇÃO NO FILTRO SAFRA MULTIPLE ---
@@ -494,10 +509,13 @@ document.getElementById('select-safra').addEventListener('change', function() {
 // --- CONTROLE DE CARREGAMENTO E PAGINAÇÃO ---
 document.getElementById('btn-carregar').addEventListener('click', async () => {
     const login = document.getElementById('input-tecnico').value.trim();
-    const cidade = document.getElementById('input-cidade').value.trim();
+    const cityVal = document.getElementById('input-cidade').value.trim();
     const selectSafra = document.getElementById('select-safra');
     const tipo = document.getElementById('select-tipo').value;
     const limit = document.getElementById('select-quantidade').value;
+
+    // Garante que a entrada da cidade passe pela padronização no momento de submissão
+    const cidade = normalizarInputCidade(cityVal);
 
     // Define o limite dinâmico com base no seletor do usuário
     limiteExibicao = limit === 'ALL' ? 9999 : parseInt(limit, 10);
