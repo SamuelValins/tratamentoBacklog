@@ -69,6 +69,11 @@ input, select, textarea {
     font-family: inherit;
     font-size: 14px;
 }
+/* Estilo específico para permitir multi-seleção confortável */
+select[multiple] {
+    height: 110px;
+    overflow-y: auto;
+}
 button {
     color: white;
     padding: 14px 20px;
@@ -179,13 +184,22 @@ button {
         <label>Cidade de Atuação</label>
         <input type="text" id="input-cidade" placeholder="DIGITE A CIDADE" oninput="this.value = normalizarInputCidade(this.value)">
         
-        <label>Mês Safra</label>
-        <select id="select-safra">
-            <option value="TODOS">TODOS</option>
+        <label>Mês Safra <span style="font-size: 10px; color: #64748b; font-weight: bold;">(SEGURE CTRL PARA SELECIONAR VÁRIOS)</span></label>
+        <select id="select-safra" multiple>
+            <option value="TODOS" selected>TODOS</option>
             <option value="1º mês">1º mês</option>
             <option value="2º mês">2º mês</option>
             <option value="3º mês">3º mês</option>
             <option value="4º mês">4º mês</option>
+            <option value="5º mês">5º mês</option>
+            <option value="6º mês">6º mês</option>
+            <option value="7º mês">7º mês</option>
+            <option value="8º mês">8º mês</option>
+            <option value="9º mês">9º mês</option>
+            <option value="10º mês">10º mês</option>
+            <option value="11º mês">11º mês</option>
+            <option value="12º mês">12º mês</option>
+            <option value="13º mês">13º mês</option>
         </select>
         
         <label>Tipo de Desconexão</label>
@@ -440,16 +454,39 @@ function ordenarFilaNearestNeighbor(contratos, startLat, startLon) {
     return [...resultadoOrdenado, ...semCoordenadasOrdenados];
 }
 
+// --- REGRA INTERATIVA DE SELEÇÃO NO FILTRO SAFRA MULTIPLE ---
+document.getElementById('select-safra').addEventListener('change', function() {
+    const selectedValues = Array.from(this.selectedOptions).map(opt => opt.value);
+    
+    if (selectedValues.includes('TODOS') && selectedValues.length > 1) {
+        // Se o técnico selecionou "TODOS" como última ação, desmarque as opções individuais
+        if (selectedValues[selectedValues.length - 1] === 'TODOS') {
+            Array.from(this.options).forEach(opt => {
+                opt.selected = (opt.value === 'TODOS');
+            });
+        } else {
+            // Se ele selecionou meses específicos, desmarque o "TODOS"
+            Array.from(this.options).forEach(opt => {
+                if (opt.value === 'TODOS') opt.selected = false;
+            });
+        }
+    }
+});
+
 // --- CONTROLE DE CARREGAMENTO E PAGINAÇÃO ---
 document.getElementById('btn-carregar').addEventListener('click', async () => {
     const login = document.getElementById('input-tecnico').value.trim();
     const cidade = document.getElementById('input-cidade').value.trim();
-    const safra = document.getElementById('select-safra').value;
+    const selectSafra = document.getElementById('select-safra');
     const tipo = document.getElementById('select-tipo').value;
     const limit = document.getElementById('select-quantidade').value;
 
+    // Concatena todos os meses de safra selecionados no elemento multiple para envio em lote
+    const safrasSelecionadasArray = Array.from(selectSafra.selectedOptions).map(opt => opt.value);
+    const safra = safrasSelecionadasArray.length > 0 ? safrasSelecionadasArray.join(',') : 'TODOS';
+
     if (!login || !cidade || !safra) {
-        alert("Por favor, preencha o login, a cidade e a safra no painel de configuração.");
+        alert("Por favor, preencha o login, a cidade e selecione pelo menos uma safra.");
         return;
     }
 
@@ -574,16 +611,23 @@ function renderizarContratos(contratos) {
 
         const tagClass = item.tipo.includes('OPC') ? 'tipo-opcao' : 'tipo-inad';
         
-        // Inteligência de Distância de Rota (Diferencia ponto de partida de paradas consecutivas + exibe distância de você)
+        // Texto de distância direto do técnico e sequencial
         let distTexto = "";
         if (item.distanciaDireta && item.distanciaDireta !== 999999) {
-            distTexto = ` • 📍 A ${item.distanciaDireta.toFixed(2)} Km de você`;
+            distTexto = ` • 📍 A ${item.distanciaDireta.toFixed(2)} Km de sua posição inicial`;
             
             // Adiciona a distância sequencial intermediária do cliente anterior se forem valores diferentes
             if (item.distancia && item.distancia !== 999999 && Math.abs(item.distancia - item.distanciaDireta) > 0.01) {
                 distTexto += ` (a ${item.distancia.toFixed(2)} Km do cliente anterior)`;
             }
         }
+
+        // Criando o card/badge de distância de você destacado no topo do card
+        const distPill = (item.distanciaDireta && item.distanciaDireta !== 999999) 
+            ? `<div style="background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.2); padding: 8px 12px; border-radius: 6px; font-size: 12px; font-weight: bold; color: #38bdf8; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+                 📍 CONTRATO ${item.contrato} • ${item.distanciaDireta.toFixed(1)} KM DE VOCÊ
+               </div>`
+            : "";
 
         // Formata os números de telefone para links limpos do WhatsApp
         const limparNumero = (num) => String(num).replace(/\D/g, '');
@@ -607,6 +651,7 @@ function renderizarContratos(contratos) {
         }
 
         card.innerHTML = `
+            ${distPill}
             <div class="contrato-header">
                 <span class="contrato-titulo">CONTRATO: ${item.contrato}</span>
                 <span class="tag-tipo ${tagClass}">${item.tipo}</span>
