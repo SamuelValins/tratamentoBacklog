@@ -1,123 +1,1093 @@
-const { app } = require('@azure/functions');
-const { TableClient } = require('@azure/data-tables');
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel de Rotas - Técnico de Retirada</title>
+<style>
+body {
+    margin: 0;
+    font-family: 'Segoe UI', sans-serif;
+    background: #0f172a;
+    color: white;
+}
+.header {
+    background: #1e293b;
+    padding: 20px;
+    font-size: 20px;
+    font-weight: bold;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #334155;
+    box-sizing: border-box;
+}
+.header span {
+    font-size: 18px;
+}
+.btn-nav {
+    background: #475569;
+    color: white;
+    padding: 8px 15px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: bold;
+    cursor: pointer;
+    border: none;
+    transition: background 0.2s;
+}
+.btn-nav:active {
+    background: #334155;
+}
+.container {
+    padding: 20px;
+    max-width: 600px;
+    margin: 0 auto;
+}
+.card {
+    background: #1e293b;
+    padding: 20px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    border: 1px solid #334155;
+}
+label {
+    display: block;
+    margin-top: 15px;
+    font-size: 14px;
+    color: #94a3b8;
+}
+input, select, textarea {
+    width: 100%;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid #334155;
+    background: #0f172a;
+    color: white;
+    margin-top: 5px;
+    box-sizing: border-box;
+    font-family: inherit;
+    font-size: 14px;
+}
+/* Estilo específico para permitir multi-seleção confortável */
+select[multiple] {
+    height: 110px;
+    overflow-y: auto;
+}
+button {
+    color: white;
+    padding: 14px 20px;
+    border: none;
+    border-radius: 8px;
+    width: 100%;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background 0.2s;
+}
+.btn-primary { background: #2563eb; margin-top: 15px; }
+.btn-primary:active { background: #1d4ed8; }
+.btn-secondary { background: #475569; margin-top: 10px; }
+.btn-warning { background: #f59e0b; margin-top: 10px; }
+.btn-success { background: #22c55e; margin-top: 10px; }
+.btn-success:disabled {
+    background: #1e3a1e;
+    color: #4b5563;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
 
-app.http('obterContratos', {
-    methods: ['GET'],
-    authLevel: 'anonymous',
-    handler: async (request, context) => {
+/* Opções de Atendimento */
+.btn-status-choice {
+    background: #0f172a;
+    border: 1px solid #334155;
+    color: #94a3b8;
+    font-size: 13px;
+    padding: 12px;
+    flex: 1;
+    cursor: pointer;
+    border-radius: 8px;
+    font-weight: bold;
+    transition: all 0.2s;
+}
+.btn-status-choice.active-prod {
+    background: #22c55e !important;
+    border-color: #22c55e !important;
+    color: white !important;
+}
+.btn-status-choice.active-improd {
+    background: #ef4444 !important;
+    border-color: #ef4444 !important;
+    color: white !important;
+}
+
+/* Lista de OS */
+.contrato-card {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 10px;
+    padding: 15px;
+    margin-bottom: 15px;
+}
+.contrato-header {
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 1px dashed #334155;
+    padding-bottom: 8px;
+    margin-bottom: 8px;
+}
+.contrato-titulo {
+    font-weight: bold;
+    color: #38bdf8;
+}
+.tag-tipo {
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-weight: bold;
+}
+.tipo-opcao { background: #1e3a8a; color: #93c5fd; }
+.tipo-inad { background: #7f1d1d; color: #fca5a5; }
+
+.info-linha {
+    font-size: 13px;
+    margin: 5px 0;
+    color: #cbd5e1;
+}
+.info-linha strong { color: #94a3b8; }
+.tel-link { color: #38bdf8; text-decoration: none; margin-right: 10px; font-weight: bold; }
+
+/* Formulário de conclusão */
+.conclusao-box {
+    display: none;
+    margin-top: 15px;
+    border-top: 1px solid #334155;
+    padding-top: 15px;
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+    <span>🚗 Rota de Retirada</span>
+    <button id="btn-historico" class="btn-nav">HISTÓRICO 📋</button>
+</div>
+
+<div class="container">
+    <!-- Configuração do Técnico / Filtros -->
+    <div class="card" id="card-filtros">
+        <h2>Painel de Configuração</h2>
+        
+        <label>Login do Técnico</label>
+        <input type="text" id="input-tecnico" placeholder="DIGITE SEU LOGIN">
+        
+        <label>Cidade de Atuação</label>
+        <input type="text" id="input-cidade" placeholder="DIGITE A CIDADE" oninput="this.value = normalizarInputCidade(this.value)">
+        
+        <label>Mês Safra <span style="font-size: 10px; color: #64748b; font-weight: bold;">(SEGURE CTRL PARA SELECIONAR VÁRIOS)</span></label>
+        <select id="select-safra" multiple>
+            <option value="TODOS" selected>TODOS</option>
+            <option value="1º mês">1º mês</option>
+            <option value="2º mês">2º mês</option>
+            <option value="3º mês">3º mês</option>
+            <option value="4º mês">4º mês</option>
+            <option value="5º mês">5º mês</option>
+            <option value="6º mês">6º mês</option>
+            <option value="7º mês">7º mês</option>
+            <option value="8º mês">8º mês</option>
+            <option value="9º mês">9º mês</option>
+            <option value="10º mês">10º mês</option>
+            <option value="11º mês">11º mês</option>
+            <option value="12º mês">12º mês</option>
+            <option value="13º mês">13º mês</option>
+        </select>
+        
+        <label>Tipo de Desconexão</label>
+        <select id="select-tipo">
+            <option value="TODOS">TODOS</option>
+            <option value="OPÇÃO">OPÇÃO</option>
+            <option value="INADIMPLÊNCIA">INADIMPLÊNCIA</option>
+        </select>
+
+        <label>Quantidade de Contratos a Buscar</label>
+        <select id="select-quantidade">
+            <option value="10">10 Contratos</option>
+            <option value="20">20 Contratos</option>
+            <option value="30" selected>30 Contratos</option>
+            <option value="50">50 Contratos</option>
+            <option value="100">100 Contratos</option>
+            <option value="ALL">Exibir Todos</option>
+        </select>
+        
+        <button id="btn-carregar" class="btn-primary">CARREGAR FILA E ORDENAR POR PROXIMIDADE</button>
+    </div>
+
+    <!-- Container dinâmico para Alertas/Fallback do GPS -->
+    <div id="alert-gps-global"></div>
+
+    <!-- Lista de Contratos Ordenados -->
+    <div id="lista-contratos"></div>
+</div>
+
+<!-- Modal de Histórico Local -->
+<div id="modal-historico" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.95); z-index: 10000; overflow-y: auto; padding: 20px; box-sizing: border-box;">
+    <div style="background: #1e293b; max-width: 500px; margin: 20px auto; padding: 20px; border-radius: 10px; border: 1px solid #334155; position: relative;">
+        <button id="btn-fechar-historico" style="position: absolute; top: 10px; right: 10px; width: 30px; height: 30px; border-radius: 50%; background: #ef4444; border: none; font-weight: bold; font-size: 16px; cursor: pointer; color: white; display: flex; align-items: center; justify-content: center; padding:0;">✕</button>
+        <h3 style="margin-top: 0; color: #38bdf8;">📋 Histórico de Atendimentos</h3>
+        <p style="font-size: 12px; color: #94a3b8; margin-bottom: 15px;">Listagem local de registros enviados por este dispositivo.</p>
+        <div id="historico-lista-container" style="display: flex; flex-direction: column; gap: 10px;">
+            <!-- Itens gerados via JavaScript -->
+        </div>
+    </div>
+</div>
+
+<script>
+let localizacaoTecnico = null;
+
+// Estruturas para gerenciar o estado temporário das fotos por contrato
+let fotosEquipamentos = {}; // { "contratoId": [base64_1, base64_2, ...] }
+let fotoFachada = {};       // { "contratoId": base64 }
+let statusAtendimento = {}; // { "contratoId": "PRODUTIVO" | "IMPRODUTIVO" }
+
+// --- CONTROLE DE PAGINAÇÃO GLOBAL ---
+let queryAnterior = "";
+let todosContratosOrdenados = [];
+let indexExibicaoAtual = 0;
+let limiteExibicao = 30; // Valor dinâmico baseado no select-quantidade
+
+// --- GEOLOCALIZAÇÃO ---
+function obterGeolocalizacao() {
+    return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+            reject("Sem suporte a GPS");
+            return;
+        }
+        navigator.geolocation.getCurrentPosition(
+            position => resolve(position.coords),
+            error => reject(error),
+            { enableHighAccuracy: true, timeout: 10000 }
+        );
+    });
+}
+
+// --- FÓRMULA DE HAVERSINE ---
+function calcularDistanciaKm(lat1, lon1, lat2, lon2) {
+    const R = 6371; 
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+        Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+}
+
+// --- AUXILIAR DE DELAY ---
+function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// --- HIGIENIZADOR CIRÚRGICO DE ENDEREÇOS (PRESERVA NÚMEROS E REMOVE APENAS PARENTESES) ---
+function limparEnderecoParaGeocodificacao(endereco) {
+    if (!endereco) return "";
+    let limpo = endereco.toUpperCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove acentos
+        
+        // 1. Remove qualquer texto explicativo/bairro entre parênteses (Ex: "(NUC RES E B GASPARINI)" -> "")
+        .replace(/\s*\([^)]*\)/g, "")
+        
+        // 2. Remove apenas siglas de quadra e lote de forma limpa
+        .replace(/\b(QD|QUADRA)\s*\d*\b/gi, "")
+        .replace(/\b(LT|LOTE)\s*\d*\b/gi, "")
+        .replace(/\b(AP|APTO|APT|BL|BLOCO|FLAT|SOBRADO|FUNDO|ALTOS)\s*[A-Z0-9]?\b/gi, "")
+        
+        // 3. Normaliza hifens órfãos seguidos do número do imóvel (Ex: " - 29" -> " 29")
+        .replace(/\s*-\s*(\d+)/g, " $1")
+        .replace(/\s*-\s*$/g, "") // Remove hífen órfão no final
+        
+        // 4. Limpa sobras de pontuação
+        .replace(/,\s*,/g, ",")
+        .replace(/,\s*$/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+    return limpo;
+}
+
+// --- NORMALIZADOR DE ENTRADA DE CIDADE (SEM ACENTOS E MAIÚSCULAS) ---
+function normalizarInputCidade(val) {
+    if (!val) return "";
+    return val.normalize("NFD")
+              .replace(/[\u0300-\u036f]/g, "")
+              .replace(/[^a-zA-Z\s]/g, "")
+              .toUpperCase()
+              .trim();
+}
+
+// --- AUXILIAR DE VALIDAÇÃO DE CENTROIDE (EVITA COORDENADAS FALSAS) ---
+function verificarSeEhCentroid(res) {
+    const tipo = res.type || "";
+    const classe = res.class || "";
+    return (classe === "place" && (tipo === "city" || tipo === "town" || tipo === "municipality" || tipo === "state"));
+}
+
+// --- GEOCODIFICADOR COMPLETO COM AUTO-RETRY (TENTATIVA 1 COM BAIRRO, TENTATIVA 2 SEM BAIRRO) ---
+async function geocodificarFila(contratos) {
+    const total = contratos.length;
+    const btnCarregar = document.getElementById('btn-carregar');
+    
+    for (let i = 0; i < total; i++) {
+        const item = contratos[i];
+        btnCarregar.textContent = `MAPEANDO ENDEREÇOS: ${i + 1} de ${total}...`;
+        
+        // 1. Limpa o endereço para remover descritivos que quebram o Nominatim do OpenStreetMap
+        const enderecoLimpo = limparEnderecoParaGeocodificacao(item.endereco);
+        
+        // 2. Busca combinando apenas rua + cidade (evita bairros não mapeados que geram erro na rua)
+        const busca = `${enderecoLimpo}, ${item.cidade}, SP, Brasil`;
+        
         try {
-            const cidade = request.query.get('cidade');
-            const safra = request.query.get('safra'); // Pode conter valores múltiplos como "1º mês,2º mês"
-            const tipo = request.query.get('tipo');
-            const limit = request.query.get('limit'); 
-
-            context.log(`[obterContratos] Iniciando busca - Cidade: ${cidade}, Safra: ${safra}, Tipo: ${tipo}, Limite: ${limit}`);
-
-            if (!cidade || !safra) {
-                return {
-                    status: 400,
-                    jsonBody: { error: "Parâmetros 'cidade' e 'safra' são obrigatórios." }
-                };
-            }
-
-            const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING || process.env.AzureWebJobsStorage;
-            
-            if (!connectionString) {
-                return {
-                    status: 500,
-                    jsonBody: { error: "Configuração ausente: AZURE_STORAGE_CONNECTION_STRING ou AzureWebJobsStorage não definidos no ambiente." }
-                };
-            }
-
-            const tableClient = TableClient.fromConnectionString(connectionString, 'ContratosRetirada');
-
-            const cidadeUpper = cidade.trim().toUpperCase();
-            
-            // Filtro da Cidade
-            let queryFilter = `Cidade eq '${cidadeUpper}'`;
-
-            // Filtro de Safra (Suporta múltiplos valores separados por vírgula)
-            if (safra && safra !== 'TODOS') {
-                const safrasArray = safra.split(',');
-                
-                // Constrói condições OR dinâmicas para cada safra selecionada no lote
-                const orConditions = safrasArray.map(s => {
-                    const safraFiltro = s.trim();
-                    const matchDigito = safraFiltro.match(/\d+/);
-                    const safraCurta = matchDigito ? matchDigito[0] : safraFiltro;
-                    return `(MesSafra eq '${safraFiltro}' or MesSafra eq '${safraCurta}')`;
-                }).join(' or ');
-
-                queryFilter += ` and (${orConditions})`;
-            } else {
-                // Se for TODOS, filtra e ignora todos os contratos classificados como expurgados no banco
-                queryFilter += ` and MesSafra ne 'EXPURGADO' and MesSafra ne 'EXPURGADO SAFRA'`;
-            }
-
-            // Filtro de Desconexão Normalizado
-            if (tipo && tipo !== 'TODOS') {
-                const tipoNormalizado = tipo.trim()
-                    .normalize("NFD")
-                    .replace(/[\u0300-\u036f]/g, "") 
-                    .toUpperCase();
-
-                if (tipoNormalizado.includes('OPCA') || tipoNormalizado.includes('OPCO')) {
-                    queryFilter += ` and TipoDesconexao eq 'DESCONECTADO - OPCAO'`;
-                } else if (tipoNormalizado.includes('INAD')) {
-                    queryFilter += ` and TipoDesconexao eq 'DESCONECTADO - INADIMPLENCIA (TOTAL)'`;
-                } else {
-                    queryFilter += ` and TipoDesconexao eq '${tipoNormalizado}'`;
-                }
-            }
-
-            context.log(`[obterContratos] Filtro OData gerado: ${queryFilter}`);
-
-            const entities = tableClient.listEntities({
-                queryOptions: { filter: queryFilter }
+            const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(busca)}&limit=1`, {
+                headers: { 'User-Agent': 'TratamentoBacklogApp/1.0' }
             });
+            if (response.ok) {
+                const data = await response.json();
+                if (data && data.length > 0) {
+                    const res = data[0];
+                    
+                    // 3. Valida se o resultado é uma cidade/estado inteira (fallback de centroide de segurança)
+                    const tipoResultado = res.type || "";
+                    const classeResultado = res.class || "";
+                    const ehCentroid = (classeResultado === "place" && (tipoResultado === "city" || tipoResultado === "town" || tipoResultado === "municipality" || tipoResultado === "state"));
 
-            let maxCount = limit && limit !== 'ALL' ? parseInt(limit, 10) : null;
-            let currentCount = 0;
-
-            const contratosFormatados = [];
-
-            for await (const entity of entities) {
-                if (maxCount !== null && currentCount >= maxCount) {
-                    break;
+                    if (!ehCentroid) {
+                        item.lat = parseFloat(res.lat);
+                        item.lon = parseFloat(res.lon);
+                        item.geocodificadoComSucesso = true;
+                    } else {
+                        item.lat = null;
+                        item.lon = null;
+                        item.geocodificadoComSucesso = false;
+                    }
                 }
-
-                const macString = entity.Mac || '';
-                const qtdEquip = macString ? macString.split('/').length : 1;
-
-                contratosFormatados.push({
-                    contrato: entity.Contrato || entity.RowKey,
-                    cidade: entity.Cidade,
-                    tipo: entity.TipoDesconexao || 'DESCONEXÃO',
-                    titular: entity.Titular || 'N/D',
-                    endereco: entity.Endereco || 'Endereço não cadastrado',
-                    complemento: entity.IdCompl || '',
-                    bairro: entity.Bairro || '',
-                    tel_res: entity.TelRes || '',
-                    tel_cel: entity.TelCel || '',
-                    qtd_equip: qtdEquip,
-                    modelo_equip: entity.ModeloEquip || entity.FamiliaEquip || 'N/D',
-                    mac: entity.Mac || 'MAC não disponível para este equipamento', 
-                    obs: entity.Obs || '',
-                    lat: null, 
-                    lon: null
-                });
-
-                currentCount++;
             }
+        } catch (e) {
+            console.error("Erro ao geocodificar contrato: ", item.contrato, e);
+        }
+        await delay(150); // Delay seguro de transação
+    }
+}
 
-            return { status: 200, jsonBody: contratosFormatados };
+// --- ATUALIZADOR E RETENTOR DE GPS GLOBAL ---
+async function atualizarGpsGlobal() {
+    const btnAlert = document.getElementById('btn-gps-global-alerta');
+    if (btnAlert) btnAlert.textContent = "🧭 BUSCANDO SATÉLITE...";
+    try {
+        localizacaoTecnico = await obterGeolocalizacao();
+        const alertDiv = document.getElementById('alert-gps-global');
+        alertDiv.innerHTML = `
+            <div style="background:#14532d; color:#4ade80; border:1px solid #22c55e; padding:12px; border-radius:8px; font-size:13px; font-weight:bold; text-align:center; margin-bottom:20px;">
+                ✅ GPS REATIVADO COM SUCESSO! Clique em carregar novamente para reordenar a fila por proximidade.
+            </div>
+        `;
+    } catch (e) {
+        alert("Não foi possível acessar seu sinal de GPS. Certifique-se de ativar e permitir a localização do navegador.");
+        if (btnAlert) btnAlert.textContent = "⚠️ RETENTAR ATIVAR GPS";
+    }
+}
 
-        } catch (error) {
-            context.error("[obterContratos] Erro Crítico:", error);
-            return {
-                status: 500,
-                jsonBody: { error: error.message || "Erro interno ao buscar contratos." }
-            };
+// --- GERADOR DE MENSAGEM DO WHATSAPP (MOLDE EXACT DO CLIENTE) ---
+function gerarMensagemWhatsapp(endereco, complemento, bairro, cidade, contrato) {
+    const enderecoCompleto = `${endereco}${complemento ? ' - ' + complemento : ''}${bairro ? ' - ' + bairro : ''}, ${cidade}`.toUpperCase();
+    return `Olá, tudo bem? Sou da central de apoio técnico da Claro. Gostaria de tratar a respeito da retirada de equipamentos no endereço: ${enderecoCompleto}. Poderia nos confirmar se este endereço está correto ou se houve alguma mudança? (Contrato: ${contrato}).`;
+}
+
+// --- ALGORITMO TSP SEQUENCIAL NEAREST-NEIGHBOR (SÓ RETORNA OS CLUSTERIZADOS MAIS PRÓXIMOS) ---
+function ordenarFilaNearestNeighbor(contratos, startLat, startLon, limiteQtd) {
+    if (!contratos || contratos.length === 0) return [];
+    
+    // Filtro rígido de Entrada: Remove e descarta qualquer contrato que falhou no GPS
+    const naoVisitados = contratos.filter(c => c.lat && c.lon && c.geocodificadoComSucesso !== false);
+
+    // Fallback sem GPS: Ordena puramente por prioridade (OPÇÃO antes de INAD)
+    if (!startLat || !startLon) {
+        return naoVisitados.sort((a, b) => {
+            const isAOpcao = String(a.tipo).toUpperCase().includes("OPC");
+            const isBOpcao = String(b.tipo).toUpperCase().includes("OPC");
+            if (isAOpcao && !isBOpcao) return -1;
+            if (!isAOpcao && isBOpcao) return 1;
+            return 0;
+        });
+    }
+
+    // 1. Calcula a distância direta inicial de você para todos os contratos válidos
+    naoVisitados.forEach(c => {
+        c.distanciaDireta = calcularDistanciaKm(startLat, startLon, c.lat, c.lon);
+    });
+
+    // 2. Ordena o pool completo pela distância direta de você (do mais próximo ao mais distante)
+    naoVisitados.sort((a, b) => a.distanciaDireta - b.distanciaDireta);
+
+    // 3. Seleciona apenas os N mais próximos para roteirização em cadeia (Descarte de distantes)
+    // Onde N é o limite do filtro. Permitimos até N + 3 se houver contratos adjacentes no mesmo bairro.
+    const N = limiteQtd === 'ALL' ? naoVisitados.length : parseInt(limiteQtd, 10);
+    const maxPermitido = limiteQtd === 'ALL' ? naoVisitados.length : (N + 3);
+
+    const candidatosProximos = naoVisitados.slice(0, Math.min(maxPermitido, naoVisitados.length));
+
+    if (candidatosProximos.length === 0) return [];
+
+    const resultadoOrdenado = [];
+    
+    // Escolhe o primeiro do lote como o absoluto mais próximo de você
+    const primeiro = candidatosProximos.shift();
+    primeiro.distancia = primeiro.distanciaDireta;
+    resultadoOrdenado.push(primeiro);
+    let pontoAtual = { lat: primeiro.lat, lon: primeiro.lon };
+
+    // 4. CONSTRUÇÃO DA CADEIA (Next-Neighbor): Próximo é sempre o mais perto da parada anterior
+    while (candidatosProximos.length > 0) {
+        let proximoIndex = -1;
+        let menorDistanciaLote = Infinity;
+
+        for (let i = 0; i < candidatosProximos.length; i++) {
+            const c = candidatosProximos[i];
+            const dist = calcularDistanciaKm(pontoAtual.lat, pontoAtual.lon, c.lat, c.lon);
+            if (dist < menorDistanciaLote) {
+                menorDistanciaLote = dist;
+                proximoIndex = i;
+            }
+        }
+
+        if (proximoIndex !== -1) {
+            const proximo = candidatosProximos.splice(proximoIndex, 1)[0];
+            proximo.distancia = menorDistanciaLote; // Distância do cliente anterior a este cliente atual
+            resultadoOrdenado.push(proximo);
+            pontoAtual = { lat: proximo.lat, lon: proximo.lon }; // Avança a posição de referência
+        } else {
+            break;
+        }
+    }
+
+    return resultadoOrdenado; // Retorna apenas os mais próximos encadeados sequencialmente
+}
+
+// --- REGRA INTERATIVA DE SELEÇÃO NO FILTRO SAFRA MULTIPLE ---
+document.getElementById('select-safra').addEventListener('change', function() {
+    const selectedValues = Array.from(this.selectedOptions).map(opt => opt.value);
+    
+    if (selectedValues.includes('TODOS') && selectedValues.length > 1) {
+        // Se o técnico selecionou "TODOS" como última ação, desmarque as opções individuais
+        if (selectedValues[selectedValues.length - 1] === 'TODOS') {
+            Array.from(this.options).forEach(opt => {
+                opt.selected = (opt.value === 'TODOS');
+            });
+        } else {
+            // Se ele selecionou meses específicos, desmarque o "TODOS"
+            Array.from(this.options).forEach(opt => {
+                if (opt.value === 'TODOS') opt.selected = false;
+            });
         }
     }
 });
+
+// --- CONTROLE DE CARREGAMENTO E PAGINAÇÃO ---
+document.getElementById('btn-carregar').addEventListener('click', async () => {
+    const login = document.getElementById('input-tecnico').value.trim();
+    const cidade = document.getElementById('input-cidade').value.trim();
+    const selectSafra = document.getElementById('select-safra');
+    const tipo = document.getElementById('select-tipo').value;
+    const limit = document.getElementById('select-quantidade').value;
+
+    // Define o limite dinâmico com base no seletor do usuário
+    limiteExibicao = limit === 'ALL' ? 9999 : parseInt(limit, 10);
+
+    // Concatena todos os meses de safra selecionados no elemento multiple para envio em lote
+    const safrasSelecionadasArray = Array.from(selectSafra.selectedOptions).map(opt => opt.value);
+    const safra = safrasSelecionadasArray.length > 0 ? safrasSelecionadasArray.join(',') : 'TODOS';
+
+    if (!login || !cidade || !safra) {
+        alert("Por favor, preencha o login, a cidade e selecione pelo menos uma safra.");
+        return;
+    }
+
+    localStorage.setItem('login_tecnico', login);
+
+    const btnCarregar = document.getElementById('btn-carregar');
+    const queryAtual = `${cidade}-${safra}-${tipo}-${limit}`;
+
+    // Se mudou o filtro ou se a fila está vazia, realiza uma nova busca do zero
+    if (queryAtual !== queryAnterior || todosContratosOrdenados.length === 0) {
+        queryAnterior = queryAtual;
+        todosContratosOrdenados = [];
+        indexExibicaoAtual = 0;
+
+        btnCarregar.disabled = true;
+        btnCarregar.textContent = "OBTENDO GEOLOCALIZAÇÃO...";
+
+        try {
+            localizacaoTecnico = await obterGeolocalizacao();
+            document.getElementById('alert-gps-global').innerHTML = ""; // Limpa avisos se GPS funcionar
+        } catch (e) {
+            // Em caso de falha de GPS, não quebra o fluxo de busca, apenas notifica e exibe botão de retentativa
+            document.getElementById('alert-gps-global').innerHTML = `
+                <div style="background:#7f1d1d; color:#fca5a5; border:1px solid #ef4444; padding:15px; border-radius:8px; font-size:13px; text-align:center; margin-bottom:20px;">
+                    ⚠️ GPS INDISPONÍVEL. A fila foi carregada sem ordenação de proximidade.<br>
+                    <button type="button" id="btn-gps-global-alerta" class="btn-warning" style="margin-top:10px; width:auto; display:inline-block; padding:8px 15px; font-size:12px;" onclick="atualizarGpsGlobal()">⚠️ ATIVAR GPS E ORDENAR FILA</button>
+                </div>
+            `;
+        }
+
+        btnCarregar.textContent = "BUSCANDO DADOS NO AZURE...";
+
+        // Varredura estrita e dinâmica baseada no dobro da quantidade selecionada no filtro
+        let limiteSwaQuery = limit;
+        if (limit !== 'ALL') {
+            limiteSwaQuery = parseInt(limit, 10) * 2;
+        }
+
+        let contratosFiltrados = [];
+        try {
+            const response = await fetch(`/api/obterContratos?cidade=${cidade}&safra=${safra}&tipo=${tipo}&limit=${limiteSwaQuery}`);
+            if (response.ok) {
+                contratosFiltrados = await response.json();
+            } else {
+                alert("Erro ao buscar registros da base do Azure.");
+                btnCarregar.disabled = false;
+                btnCarregar.textContent = "CARREGAR FILA E ORDENAR POR PROXIMIDADE";
+                return;
+            }
+        } catch (err) {
+            console.error("Erro na requisição: ", err);
+            alert("Falha de conexão com o banco de dados do Azure.");
+            btnCarregar.disabled = false;
+            btnCarregar.textContent = "CARREGAR FILA E ORDENAR POR PROXIMIDADE";
+            return;
+        }
+
+        // Se encontrou dados, executa a geocodificação e constrói a cadeia de proximidade TSP
+        if (contratosFiltrados.length > 0) {
+            if (localizacaoTecnico) {
+                await geocodificarFila(contratosFiltrados);
+                todosContratosOrdenados = ordenarFilaNearestNeighbor(contratosFiltrados, localizacaoTecnico.latitude, localizacaoTecnico.longitude, limit);
+            } else {
+                todosContratosOrdenados = ordenarFilaNearestNeighbor(contratosFiltrados, null, null, limit);
+            }
+        }
+    }
+
+    // Fatia os próximos contratos inéditos para exibição com base no limite real solicitado
+    const blocoExibicao = todosContratosOrdenados.slice(indexExibicaoAtual, indexExibicaoAtual + limiteExibicao);
+
+    if (blocoExibicao.length === 0) {
+        alert("Fim da fila! Não há mais contratos pendentes com esses critérios.");
+        btnCarregar.disabled = false;
+        btnCarregar.textContent = "CARREGAR FILA E ORDENAR POR PROXIMIDADE";
+        indexExibicaoAtual = 0; // Prepara reset para próxima busca
+        return;
+    }
+
+    renderizarContratos(blocoExibicao);
+    indexExibicaoAtual += limiteExibicao;
+
+    // Atualiza visualmente o botão indicando quantos contratos restam na fila geral
+    if (indexExibicaoAtual < todosContratosOrdenados.length) {
+        const restantes = todosContratosOrdenados.length - indexExibicaoAtual;
+        btnCarregar.textContent = `CARREGAR PRÓXIMOS ${Math.min(limiteExibicao, restantes)} CONTRATOS 🧭`;
+    } else {
+        btnCarregar.textContent = "FIM DA FILA! RECARREGAR DO INÍCIO 🔄";
+        indexExibicaoAtual = 0; // Reseta o ponteiro caso queira rodar a fila novamente
+    }
+
+    btnCarregar.disabled = false;
+});
+
+// --- RENDERIZADOR DE CARDS ---
+function renderizarContratos(contratos) {
+    const container = document.getElementById('lista-contratos');
+    container.innerHTML = "";
+
+    if (contratos.length === 0) {
+        container.innerHTML = '<div style="text-align:center; padding:20px; color:#94a3b8;">Nenhum contrato localizado para os critérios informados.</div>';
+        return;
+    }
+
+    contratos.forEach((item) => {
+        fotosEquipamentos[item.contrato] = [];
+        fotoFachada[item.contrato] = null;
+        statusAtendimento[item.contrato] = null;
+
+        const card = document.createElement('div');
+        card.className = 'contrato-card';
+        card.id = `card-${item.contrato}`;
+
+        const tagClass = item.tipo.includes('OPC') ? 'tipo-opcao' : 'tipo-inad';
+        
+        // Texto de distância direto do técnico e sequencial (Incondicional e livre de falhas de lote)
+        let distTexto = "";
+        if (item.distanciaDireta && item.distanciaDireta !== 999999) {
+            distTexto = ` • 📍 A ${item.distanciaDireta.toFixed(2)} Km de sua posição inicial`;
+            
+            // Adiciona a distância sequencial intermediária do cliente anterior se forem valores válidos e diferentes
+            if (item.distancia && item.distancia !== 999999 && Math.abs(item.distancia - item.distanciaDireta) > 0.01) {
+                distTexto += ` (a ${item.distancia.toFixed(2)} Km do cliente anterior)`;
+            }
+        }
+
+        // Criando o card/badge de distância de você destacado no topo de cada card (Unificado e livre de falhas de índice)
+        const distPill = (item.distanciaDireta && item.distanciaDireta !== 999999) 
+            ? `<div style="background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.2); padding: 8px 12px; border-radius: 6px; font-size: 12px; font-weight: bold; color: #38bdf8; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+                 📍 CONTRATO ${item.contrato} • ${item.distanciaDireta.toFixed(1)} KM DE VOCÊ
+               </div>`
+            : "";
+
+        // Formata os números de telefone para links limpos do WhatsApp
+        const limparNumero = (num) => String(num).replace(/\D/g, '');
+        const mensagemPronta = gerarMensagemWhatsapp(item.endereco, item.complemento, item.bairro, item.cidade, item.contrato);
+        const mensagemCodificada = encodeURIComponent(mensagemPronta);
+
+        let htmlTelefones = "";
+        if (item.tel_res) {
+            const numResLimpo = limparNumero(item.tel_res);
+            htmlTelefones += `<a class="tel-link" href="tel:${item.tel_res}">📞 Residencial</a>`;
+            if (numResLimpo.length >= 10) {
+                htmlTelefones += `<a href="https://api.whatsapp.com/send?phone=55${numResLimpo}&text=${mensagemCodificada}" target="_blank" style="color:#22c55e; text-decoration:none; font-weight:bold; margin-right:15px; font-size:12px;">💬 WhatsApp</a>`;
+            }
+        }
+        if (item.tel_cel) {
+            const numCelLimpo = limparNumero(item.tel_cel);
+            htmlTelefones += `<a class="tel-link" href="tel:${item.tel_cel}">📱 Celular</a>`;
+            if (numCelLimpo.length >= 10) {
+                htmlTelefones += `<a href="https://api.whatsapp.com/send?phone=55${numCelLimpo}&text=${mensagemCodificada}" target="_blank" style="color:#22c55e; text-decoration:none; font-weight:bold; margin-right:15px; font-size:12px;">💬 WhatsApp</a>`;
+            }
+        }
+
+        card.innerHTML = `
+            ${distPill}
+            <div class="contrato-header">
+                <span class="contrato-titulo">CONTRATO: ${item.contrato}</span>
+                <span class="tag-tipo ${tagClass}">${item.tipo}</span>
+            </div>
+            <div class="info-linha"><strong>Titular:</strong> ${item.titular}</div>
+            <div class="info-linha"><strong>Endereço:</strong> ${item.endereco} ${item.complemento ? ' - ' + item.complemento : ''} (${item.bairro})${distTexto}</div>
+            <div class="info-linha">
+                <strong>Telefones:</strong> 
+                ${htmlTelefones || '<span style="color:#ef4444;">Sem telefones salvos</span>'}
+            </div>
+            <div class="info-linha">
+                <strong>Equipamentos:</strong> ${item.qtd_equip} unidades (
+                <span style="color:#38bdf8; cursor:pointer; text-decoration:underline;" onclick="alert('MAC do Equipamento: ${item.mac || 'N/D'}')">
+                    ${item.modelo_equip}
+                </span>)
+            </div>
+            ${item.obs ? `<div class="info-linha" style="color: #f59e0b;"><strong>Obs:</strong> ${item.obs}</div>` : ''}
+            
+            <div style="display:flex; gap:10px; margin-top:15px;">
+                <button class="btn-primary" style="margin-top:0;" onclick="irParaMapa(${item.lat || 0}, ${item.lon || 0}, '${item.endereco.replace(/'/g, "\\'")}', '${item.cidade}')">🧭 MAPA</button>
+                <button class="btn-warning" style="margin-top:0;" id="btn-atender-${item.contrato}" onclick="iniciarAtendimento('${item.contrato}')">INICIAR ATENDIMENTO</button>
+            </div>
+            
+            <!-- Caixa de Conclusão -->
+            <div class="conclusao-box" id="conclusao-${item.contrato}">
+                <label style="margin-top:0; font-weight:bold; color:#cbd5e1;">Selecione o Resultado:</label>
+                <div style="display: flex; gap: 10px; margin-top: 5px; margin-bottom: 15px;">
+                    <button type="button" id="btn-prod-${item.contrato}" class="btn-status-choice" onclick="selecionarStatusAtendimento('${item.contrato}', 'PRODUTIVO')">👍 PRODUTIVO (RETIRADO)</button>
+                    <button type="button" id="btn-improd-${item.contrato}" class="btn-status-choice" onclick="selecionarStatusAtendimento('${item.contrato}', 'IMPRODUTIVO')">👎 IMPRODUTIVO</button>
+                </div>
+
+                <!-- SUB-BOX PRODUTIVO -->
+                <div id="box-produtivo-${item.contrato}" style="display:none; border-top: 1px dashed #334155; padding-top: 10px;">
+                    <label>Fotos da Etiqueta do Equipamento Retirado (Mínimo de 1 foto)</label>
+                    <button type="button" class="btn-primary" style="margin-top:5px; margin-bottom:10px;" onclick="document.getElementById('input-etiqueta-${item.contrato}').click()">📸 ADICIONAR FOTO DA ETIQUETA</button>
+                    <input type="file" accept="image/*" capture="environment" id="input-etiqueta-${item.contrato}" style="display:none;" onchange="adicionarFotoEquipamento('${item.contrato}', this)">
+                    
+                    <div id="grid-fotos-${item.contrato}" style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 10px;"></div>
+                </div>
+
+                <!-- SUB-BOX IMPRODUTIVO -->
+                <div id="box-improdutivo-${item.contrato}" style="display:none; border-top: 1px dashed #334155; padding-top: 10px;">
+                    <label>Foto da Fachada da Residência (Obrigatório)</label>
+                    <button type="button" class="btn-primary" style="margin-top:5px; margin-bottom:10px;" onclick="document.getElementById('input-fachada-${item.contrato}').click()">📸 TIRAR FOTO DA FACHADA</button>
+                    <input type="file" accept="image/*" capture="environment" id="input-fachada-${item.contrato}" style="display:none;" onchange="definirFotoFachada('${item.contrato}', this)">
+                    
+                    <div id="preview-fachada-${item.contrato}" style="margin-bottom: 10px;"></div>
+
+                    <label>Código de Baixa (Obrigatório)</label>
+                    <input type="text" id="input-codigo-baixa-${item.contrato}" placeholder="DIGITE O CÓDIGO DE BAIXA" oninput="this.value = this.value.toUpperCase(); validarConclusao('${item.contrato}')">
+
+                    <label>Descrição Opcional</label>
+                    <textarea id="input-desc-improdutivo-${item.contrato}" placeholder="DIGITE DETALHES ADICIONAIS (OPCIONAL)" oninput="this.value = this.value.toUpperCase()"></textarea>
+                    
+                    <div id="status-gps-${item.contrato}" style="margin-top: 12px; padding: 12px; border-radius: 6px; font-size: 12px; font-weight: bold; text-align: center;"></div>
+                    <button type="button" id="btn-gps-manual-${item.contrato}" class="btn-warning" style="display:none; margin-top:10px;" onclick="obterGpsManual('${item.contrato}')">⚠️ ATUALIZAR GEOLOCALIZAÇÃO</button>
+                </div>
+
+                <!-- Botão de Conclusão Final -->
+                <button id="btn-concluir-final-${item.contrato}" class="btn-success" style="margin-top: 15px;" disabled onclick="enviarAtendimentoFinal('${item.contrato}')">SALVAR ATENDIMENTO</button>
+            </div>
+        `;
+        container.appendChild(card);
+    });
+}
+
+// --- REDIRECIONAMENTO DE MAPAS ---
+function irParaMapa(lat, lon, endereco, cidade) {
+    if (lat && lon && !isNaN(lat) && !isNaN(lon) && lat !== 0) {
+        if (localizacaoTecnico) {
+            window.open(`https://www.google.com/maps/dir/?api=1&origin=${localizacaoTecnico.latitude},${localizacaoTecnico.longitude}&destination=${lat},${lon}&travelmode=driving`, '_blank');
+        } else {
+            window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lon}`, '_blank');
+        }
+    } else if (endereco) {
+        // Busca inteligente combinando a rua com a cidade
+        const buscaEnderecoCompleto = `${endereco}, ${cidade || ''} - SP`;
+        window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(buscaEnderecoCompleto)}`, '_blank');
+    } else {
+        alert("Endereço não disponível para navegação.");
+    }
+}
+
+// --- ALTERNADOR DE STATUS (PRODUTIVO VS IMPRODUTIVO) ---
+function selecionarStatusAtendimento(contratoId, status) {
+    statusAtendimento[contratoId] = status;
+    
+    const btnProd = document.getElementById(`btn-prod-${contratoId}`);
+    const btnImprod = document.getElementById(`btn-improd-${contratoId}`);
+    const boxProd = document.getElementById(`box-produtivo-${contratoId}`);
+    const boxImprod = document.getElementById(`box-improdutivo-${contratoId}`);
+
+    if (status === 'PRODUTIVO') {
+        btnProd.classList.add('active-prod');
+        btnImprod.classList.remove('active-improd');
+        boxProd.style.display = 'block';
+        boxImprod.style.display = 'none';
+    } else {
+        btnProd.classList.remove('active-prod');
+        btnImprod.classList.add('active-improd');
+        boxProd.style.display = 'none';
+        boxImprod.style.display = 'block';
+    }
+    validarConclusao(contratoId);
+}
+
+// --- FLUXO DE ADICIONAR E EXCLUIR FOTOS DO EQUIPAMENTO (MÚLTIPLAS) ---
+function adicionarFotoEquipamento(contratoId, input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        fotosEquipamentos[contratoId].push(e.target.result);
+        renderizarFotosEquipamentos(contratoId);
+        validarConclusao(contratoId);
+    };
+    reader.readAsDataURL(file);
+    input.value = ""; 
+}
+
+// --- RENDERIZADOR DE GRID DE FOTOS ---
+function renderizarFotosEquipamentos(contratoId) {
+    const grid = document.getElementById(`grid-fotos-${contratoId}`);
+    grid.innerHTML = "";
+
+    fotosEquipamentos[contratoId].forEach((imgSrc, index) => {
+        const imgContainer = document.createElement('div');
+        imgContainer.style.position = "relative";
+        imgContainer.style.aspectRatio = "1";
+        
+        const img = document.createElement('img');
+        img.src = imgSrc;
+        img.style.width = "100%";
+        img.style.height = "100%";
+        img.style.objectFit = "cover";
+        img.style.borderRadius = "6px";
+        img.style.border = "1px solid #475569";
+        
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = "button";
+        deleteBtn.innerHTML = "✕";
+        deleteBtn.style.position = "absolute";
+        deleteBtn.style.top = "2px";
+        deleteBtn.style.right = "2px";
+        deleteBtn.style.background = "#ef4444";
+        deleteBtn.style.color = "white";
+        deleteBtn.style.border = "none";
+        deleteBtn.style.borderRadius = "50%";
+        deleteBtn.style.width = "20px";
+        deleteBtn.style.height = "20px";
+        deleteBtn.style.fontSize = "10px";
+        deleteBtn.style.cursor = "pointer";
+        deleteBtn.style.padding = "0";
+        deleteBtn.style.display = "flex";
+        deleteBtn.style.alignItems = "center";
+        deleteBtn.style.justifyContent = "center";
+        deleteBtn.style.fontWeight = "bold";
+        
+        deleteBtn.onclick = () => {
+            fotosEquipamentos[contratoId].splice(index, 1);
+            renderizarFotosEquipamentos(contratoId);
+            validarConclusao(contratoId);
+        };
+        
+        imgContainer.appendChild(img);
+        imgContainer.appendChild(deleteBtn);
+        grid.appendChild(imgContainer);
+    });
+}
+
+// --- FLUXO DE ADICIONAR E EXCLUIR FOTO DA FACHADA (IMPRODUTIVO) ---
+function definirFotoFachada(contratoId, input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        fotoFachada[contratoId] = e.target.result;
+        
+        const previewDiv = document.getElementById(`preview-fachada-${contratoId}`);
+        previewDiv.innerHTML = `
+            <div style="position:relative; width: 100px; aspect-ratio:1;">
+                <img src="${e.target.result}" style="width:100%; height:100%; object-fit:cover; border-radius:6px; border:1px solid #475569;">
+                <button type="button" style="position:absolute; top:2px; right:2px; background:#ef4444; color:white; border:none; border-radius:50%; width:20px; height:20px; font-size:10px; cursor:pointer; padding:0; display:flex; align-items:center; justify-content:center; font-weight:bold;" onclick="removerFotoFachada('${contratoId}')">✕</button>
+            </div>
+        `;
+        validarConclusao(contratoId);
+    };
+    reader.readAsDataURL(file);
+    input.value = "";
+}
+
+function removerFotoFachada(contratoId) {
+    fotoFachada[contratoId] = null;
+    document.getElementById(`preview-fachada-${contratoId}`).innerHTML = "";
+    validarConclusao(contratoId);
+}
+
+// --- ATUALIZAÇÃO DO GPS MANUAL ---
+async function obterGpsManual(contratoId) {
+    const btnGps = document.getElementById(`btn-gps-manual-${contratoId}`);
+    btnGps.disabled = true;
+    btnGps.textContent = "BUSCANDO SATÉLITE...";
+    try {
+        localizacaoTecnico = await obterGeolocalizacao();
+    } catch (e) {
+        alert("Não foi possível acessar sua localização. Certifique-se de ativar o GPS de seu aparelho.");
+    }
+    btnGps.disabled = false;
+    btnGps.textContent = "⚠️ ATUALIZAR GEOLOCALIZAÇÃO";
+    validarConclusao(contratoId);
+}
+
+// --- VALIDAÇÃO GERAL DE REQUISITOS ---
+function validarConclusao(contratoId) {
+    const statusAtivo = statusAtendimento[contratoId];
+    const btnConcluir = document.getElementById(`btn-concluir-final-${contratoId}`);
+    
+    if (!statusAtivo) {
+        btnConcluir.disabled = true;
+        return;
+    }
+
+    if (statusAtivo === 'PRODUTIVO') {
+        const qtdFotos = fotosEquipamentos[contratoId] ? fotosEquipamentos[contratoId].length : 0;
+        btnConcluir.disabled = (qtdFotos === 0);
+    } else if (statusAtivo === 'IMPRODUTIVO') {
+        const temFotoFachada = !!fotoFachada[contratoId];
+        const codigoBaixa = document.getElementById(`input-codigo-baixa-${contratoId}`).value.trim();
+        const temGps = !!(localizacaoTecnico && localizacaoTecnico.latitude && localizacaoTecnico.longitude);
+
+        const statusGpsBox = document.getElementById(`status-gps-${contratoId}`);
+        const btnGps = document.getElementById(`btn-gps-manual-${contratoId}`);
+        
+        if (temGps) {
+            statusGpsBox.style.background = "#14532d";
+            statusGpsBox.style.color = "#4ade80";
+            statusGpsBox.style.border = "1px solid #22c55e";
+            statusGpsBox.innerHTML = `📍 GPS CAPTURADO:<br>Lat ${localizacaoTecnico.latitude} | Lon ${localizacaoTecnico.longitude}`;
+            btnGps.style.display = "none";
+        } else {
+            statusGpsBox.style.background = "#7f1d1d";
+            statusGpsBox.style.color = "#fca5a5";
+            statusGpsBox.style.border = "1px solid #ef4444";
+            statusGpsBox.innerHTML = `⚠️ GEOLOCALIZAÇÃO OBRIGATÓRIA PENDENTE.`;
+            btnGps.style.display = "block";
+        }
+
+        btnConcluir.disabled = !(temFotoFachada && codigoBaixa && temGps);
+    }
+}
+
+// --- CONCLUSÃO E ENVIO PARA O AZURE ---
+async function enviarAtendimentoFinal(contratoId) {
+    const statusAtivo = statusAtendimento[contratoId];
+    const tecnico = localStorage.getItem('login_tecnico');
+    const btnSalvar = document.getElementById(`btn-concluir-final-${contratoId}`);
+
+    btnSalvar.disabled = true;
+    btnSalvar.textContent = "SALVANDO NO AZURE...";
+
+    let payload = {
+        contrato: contratoId,
+        tecnico: tecnico,
+        status: statusAtivo,
+        data_conclusao: new Date().toISOString(),
+        localizacao: localizacaoTecnico ? {
+            latitude: localizacaoTecnico.latitude,
+            longitude: localizacaoTecnico.longitude
+        } : null
+    };
+
+    if (statusAtivo === 'PRODUTIVO') {
+        payload.imagens_etiqueta = fotosEquipamentos[contratoId];
+    } else {
+        payload.imagem_fachada = fotoFachada[contratoId];
+        payload.codigo_baixa = document.getElementById(`input-codigo-baixa-${contratoId}`).value.trim();
+        payload.observacao_conclusao = document.getElementById(`input-desc-improdutivo-${contratoId}`).value.trim();
+    }
+
+    try {
+        const response = await fetch('/api/concluirAtendimento', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+            alert(`Atendimento do contrato ${contratoId} registrado com sucesso!`);
+
+            const registroHistorico = {
+                contrato: contratoId,
+                status: statusAtivo,
+                dataHora: new Date().toISOString(),
+                tecnico: tecnico,
+                codigo_baixa: statusAtivo === 'IMPRODUTIVO' ? payload.codigo_baixa : null,
+                observacao: statusAtivo === 'IMPRODUTIVO' ? payload.observacao_conclusao : "EQUIPAMENTO RETIRADO WITH SUCCESS",
+                qtd_fotos: statusAtivo === 'PRODUTIVO' ? payload.imagens_etiqueta.length : 1
+            };
+            salvarNoHistoricoLocal(registroHistorico);
+
+            document.getElementById(`card-${contratoId}`).remove();
+            
+            delete fotosEquipamentos[contratoId];
+            delete fotoFachada[contratoId];
+            delete statusAtendimento[contratoId];
+
+            const container = document.getElementById('lista-contratos');
+            if (container.children.length === 0) {
+                container.innerHTML = '<div style="text-align:center; padding:20px; color:#94a3b8; font-size:14px;">✅ Fila finalizada! Todos os contratos próximos foram atendidos.</div>';
+            }
+        } else {
+            const erro = await response.json();
+            alert("Erro ao salvar no Azure: " + (erro.error || "Erro desconhecido"));
+            btnSalvar.disabled = false;
+            btnSalvar.textContent = "SALVAR ATENDIMENTO";
+        }
+    } catch (err) {
+        console.error(err);
+        alert("Erro de rede ao conectar com o serviço do Azure.");
+        btnSalvar.disabled = false;
+        btnSalvar.textContent = "SALVAR ATENDIMENTO";
+    }
+}
+
+// --- FUNÇÕES DE CONTROLE DO HISTÓRICO LOCAL ---
+function salvarNoHistoricoLocal(novoRegistro) {
+    let historico = [];
+    try {
+        historico = JSON.parse(localStorage.getItem('historico_atendimentos')) || [];
+    } catch (e) {
+        historico = [];
+    }
+    historico.unshift(novoRegistro); 
+    
+    if (historico.length > 50) {
+        historico = historico.slice(0, 50);
+    }
+    localStorage.setItem('historico_atendimentos', JSON.stringify(historico));
+}
+
+function renderizarListaHistorico() {
+    const container = document.getElementById('historico-lista-container');
+    container.innerHTML = '';
+    
+    let historico = [];
+    try {
+        historico = JSON.parse(localStorage.getItem('historico_atendimentos')) || [];
+    } catch (e) {
+        historico = [];
+    }
+    
+    if (historico.length === 0) {
+        container.innerHTML = '<div style="text-align:center; padding:20px; color:#94a3b8; font-size:13px;">Nenhum atendimento registrado localmente neste aparelho.</div>';
+        return;
+    }
+    
+    historico.forEach(item => {
+        const itemCard = document.createElement('div');
+        itemCard.style.background = '#0f172a';
+        itemCard.style.border = '1px solid #334155';
+        itemCard.style.borderRadius = '8px';
+        itemCard.style.padding = '12px';
+        itemCard.style.fontSize = '13px';
+        
+        const dataFormatada = new Date(item.dataHora).toLocaleString('pt-BR');
+        const tagColor = item.status === 'PRODUTIVO' ? '#22c55e' : '#ef4444';
+
+        itemCard.innerHTML = `
+            <div style="display:flex; justify-content:space-between; margin-bottom:8px; border-bottom:1px dashed #334155; padding-bottom:5px;">
+                <strong style="color:#38bdf8;">CONTRATO: ${item.contrato}</strong>
+                <span style="color:${tagColor}; font-weight:bold; font-size:11px;">${item.status}</span>
+            </div>
+            <div style="color:#cbd5e1; margin-bottom:4px;">📅 <strong>Data:</strong> ${dataFormatada}</div>
+            <div style="color:#cbd5e1; margin-bottom:4px;">👤 <strong>Técnico:</strong> ${item.tecnico}</div>
+            ${item.codigo_baixa ? `<div style="color:#cbd5e1; margin-bottom:4px;">🔑 <strong>Cód. Baixa:</strong> ${item.codigo_baixa}</div>` : ''}
+            <div style="color:#94a3b8; font-style:italic; word-break: break-word;">💬 ${item.observacao || 'Sem observações'}</div>
+            <div style="color:#cbd5e1; font-size:11px; margin-top:5px; text-align:right;">📷 Fotos salvas: ${item.qtd_fotos}</div>
+        `;
+        container.appendChild(itemCard);
+    });
+}
+
+// --- CONFIGURAÇÃO DE EVENTOS DO HISTÓRICO ---
+document.getElementById('btn-historico').addEventListener('click', () => {
+    document.getElementById('modal-historico').style.display = 'block';
+    renderizarListaHistorico();
+});
+
+document.getElementById('btn-fechar-historico').addEventListener('click', () => {
+    document.getElementById('modal-historico').style.display = 'none';
+});
+
+// --- FUNÇÃO PARA INICIAR O ATENDIMENTO DO CARD ---
+function iniciarAtendimento(contratoId) {
+    const boxConclusao = document.getElementById(`conclusao-${contratoId}`);
+    const btnAtender = document.getElementById(`btn-atender-${contratoId}`);
+    
+    if (boxConclusao.style.display === "block") {
+        boxConclusao.style.display = "none";
+        btnAtender.textContent = "INICIAR ATENDIMENTO";
+        btnAtender.style.background = "#f59e0b";
+    } else {
+        boxConclusao.style.display = "block";
+        btnAtender.textContent = "CANCELAR ATENDIMENTO ✕";
+        btnAtender.style.background = "#ef4444";
+        
+        // Tenta obter coordenadas no momento que inicia para otimizar tempo
+        obterGeolocalizacao().then(coords => {
+            localizacaoTecnico = coords;
+            validarConclusao(contratoId);
+        }).catch(() => {
+            console.log("Aguardando ativação do GPS manual.");
+        });
+    }
+}
+
+window.addEventListener('load', async () => {
+    const loginSalvo = localStorage.getItem('login_tecnico');
+    if (loginSalvo) {
+        document.getElementById('input-tecnico').value = loginSalvo;
+    }
+});
+</script>
+</body>
+</html>
