@@ -288,13 +288,13 @@ function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// --- HIGIENIZADOR CIRÚRGICO DE ENDEREÇOS ---
+// --- HIGIENIZADOR CIRÚRGICO DE ENDEREÇOS (PRESERVA NÚMEROS E REMOVE APENAS PARENTESES) ---
 function limparEnderecoParaGeocodificacao(endereco) {
     if (!endereco) return "";
     let limpo = endereco.toUpperCase()
         .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove acentos
         
-        // 1. Remove qualquer texto explicativo/bairro entre parênteses
+        // 1. Remove qualquer texto explicativo/bairro entre parênteses (Ex: "(NUC RES E B GASPARINI)" -> "")
         .replace(/\s*\([^)]*\)/g, "")
         
         // 2. Remove apenas siglas de quadra e lote de forma limpa
@@ -302,7 +302,7 @@ function limparEnderecoParaGeocodificacao(endereco) {
         .replace(/\b(LT|LOTE)\s*\d*\b/gi, "")
         .replace(/\b(AP|APTO|APT|BL|BLOCO|FLAT|SOBRADO|FUNDO|ALTOS)\s*[A-Z0-9]?\b/gi, "")
         
-        // 3. Normaliza hifens órfãos seguidos do número do imóvel
+        // 3. Normaliza hifens órfãos seguidos do número do imóvel (Ex: " - 29" -> " 29")
         .replace(/\s*-\s*(\d+)/g, " $1")
         .replace(/\s*-\s*$/g, "") // Remove hífen órfão no final
         
@@ -314,7 +314,7 @@ function limparEnderecoParaGeocodificacao(endereco) {
     return limpo;
 }
 
-// --- NORMALIZADOR DE ENTRADA DE CIDADE ---
+// --- NORMALIZADOR DE ENTRADA DE CIDADE (SEM ACENTOS E MAIÚSCULAS) ---
 function normalizarInputCidade(val) {
     if (!val) return "";
     return val.normalize("NFD")
@@ -324,14 +324,14 @@ function normalizarInputCidade(val) {
               .trim();
 }
 
-// --- AUXILIAR DE VALIDAÇÃO DE CENTROIDE ---
+// --- AUXILIAR DE VALIDAÇÃO DE CENTROIDE (EVITA COORDENADAS FALSAS) ---
 function verificarSeEhCentroid(res) {
     const tipo = res.type || "";
     const classe = res.class || "";
     return (classe === "place" && (tipo === "city" || tipo === "town" || tipo === "municipality" || tipo === "state"));
 }
 
-// --- GEOCODIFICADOR COMPLETO ---
+// --- GEOCODIFICADOR COMPLETO COM AUTO-RETRY (TENTATIVA 1 COM BAIRRO, TENTATIVA 2 SEM BAIRRO) ---
 async function geocodificarFila(contratos) {
     const total = contratos.length;
     const btnCarregar = document.getElementById('btn-carregar');
@@ -340,7 +340,10 @@ async function geocodificarFila(contratos) {
         const item = contratos[i];
         btnCarregar.textContent = `MAPEANDO ENDEREÇOS: ${i + 1} de ${total}...`;
         
+        // 1. Limpa o endereço para remover descritivos que quebram o Nominatim do OpenStreetMap
         const enderecoLimpo = limparEnderecoParaGeocodificacao(item.endereco);
+        
+        // 2. Busca combinando apenas rua + cidade (evita bairros não mapeados que geram erro na rua)
         const busca = `${enderecoLimpo}, ${item.cidade}, SP, Brasil`;
         
         try {
@@ -351,6 +354,8 @@ async function geocodificarFila(contratos) {
                 const data = await response.json();
                 if (data && data.length > 0) {
                     const res = data[0];
+                    
+                    // 3. Valida se o resultado é uma cidade/estado inteira (fallback de centroide de segurança)
                     const tipoResultado = res.type || "";
                     const classeResultado = res.class || "";
                     const ehCentroid = (classeResultado === "place" && (tipoResultado === "city" || tipoResultado === "town" || tipoResultado === "municipality" || tipoResultado === "state"));
@@ -391,13 +396,13 @@ async function atualizarGpsGlobal() {
     }
 }
 
-// --- GERADOR DE MENSAGEM DO WHATSAPP ---
+// --- GERADOR DE MENSAGEM DO WHATSAPP (MOLDE EXACT DO CLIENTE) ---
 function gerarMensagemWhatsapp(endereco, complemento, bairro, cidade, contrato) {
     const enderecoCompleto = `${endereco}${complemento ? ' - ' + complemento : ''}${bairro ? ' - ' + bairro : ''}, ${cidade}`.toUpperCase();
     return `Olá, tudo bem? Sou da central de apoio técnico da Claro. Gostaria de tratar a respeito da retirada de equipamentos no endereço: ${enderecoCompleto}. Poderia nos confirmar se este endereço está correto ou se houve alguma mudança? (Contrato: ${contrato}).`;
 }
 
-// --- ALGORITMO TSP SEQUENCIAL NEAREST-NEIGHBOR COM LIMITE DE 1 KM ---
+// --- ALGORITMO TSP SEQUENCIAL NEAREST-NEIGHBOR (SÓ RETORNA OS CLUSTERIZADOS MAIS PRÓXIMOS) ---
 function ordenarFilaNearestNeighbor(contratos, startLat, startLon, limiteQtd) {
     if (!contratos || contratos.length === 0) return [];
     
@@ -420,31 +425,33 @@ function ordenarFilaNearestNeighbor(contratos, startLat, startLon, limiteQtd) {
         c.distanciaDireta = calcularDistanciaKm(startLat, startLon, c.lat, c.lon);
     });
 
-    // 2. Ordena o pool completo pela distância direta do técnico (do mais próximo ao mais distante)
+    // 2. Ordena o pool completo pela distância direta de você (do mais próximo ao mais distante)
     naoVisitados.sort((a, b) => a.distanciaDireta - b.distanciaDireta);
 
-    if (naoVisitados.length === 0) return [];
+    // 3. Seleciona apenas os N mais próximos para roteirização em cadeia (Descarte de distantes)
+    // Onde N é o limite do filtro. Permitimos até N + 3 se houver contratos adjacentes no mesmo bairro.
+    const N = limiteQtd === 'ALL' ? naoVisitados.length : parseInt(limiteQtd, 10);
+    const maxPermitido = limiteQtd === 'ALL' ? naoVisitados.length : (N + 3);
+
+    const candidatosProximos = naoVisitados.slice(0, Math.min(maxPermitido, naoVisitados.length));
+
+    if (candidatosProximos.length === 0) return [];
 
     const resultadoOrdenado = [];
-    const candidatos = [...naoVisitados];
     
-    // Escolhe o primeiro do lote como o absoluto mais próximo de você (respeitando sua geolocalização inicial)
-    const primeiro = candidatos.shift();
+    // Escolhe o primeiro do lote como o absoluto mais próximo de você
+    const primeiro = candidatosProximos.shift();
     primeiro.distancia = primeiro.distanciaDireta;
     resultadoOrdenado.push(primeiro);
-    
     let pontoAtual = { lat: primeiro.lat, lon: primeiro.lon };
 
-    // Limite rigoroso de distância inter-paradas de menos de 1 km
-    const MAX_DISTANCIA_SALTO_KM = 1.0;
-
-    // 3. CONSTRUÇÃO DA CADEIA (Next-Neighbor): Próximo é sempre o mais perto do anterior a < 1 km
-    while (candidatos.length > 0) {
+    // 4. CONSTRUÇÃO DA CADEIA (Next-Neighbor): Próximo é sempre o mais perto da parada anterior
+    while (candidatosProximos.length > 0) {
         let proximoIndex = -1;
         let menorDistanciaLote = Infinity;
 
-        for (let i = 0; i < candidatos.length; i++) {
-            const c = candidatos[i];
+        for (let i = 0; i < candidatosProximos.length; i++) {
+            const c = candidatosProximos[i];
             const dist = calcularDistanciaKm(pontoAtual.lat, pontoAtual.lon, c.lat, c.lon);
             if (dist < menorDistanciaLote) {
                 menorDistanciaLote = dist;
@@ -452,21 +459,17 @@ function ordenarFilaNearestNeighbor(contratos, startLat, startLon, limiteQtd) {
             }
         }
 
-        // Se o próximo ponto mais próximo está a menos de 1 km do anterior, adicionamos na sequência
-        if (proximoIndex !== -1 && menorDistanciaLote < MAX_DISTANCIA_SALTO_KM) {
-            const proximo = candidatos.splice(proximoIndex, 1)[0];
+        if (proximoIndex !== -1) {
+            const proximo = candidatosProximos.splice(proximoIndex, 1)[0];
             proximo.distancia = menorDistanciaLote; // Distância do cliente anterior a este cliente atual
             resultadoOrdenado.push(proximo);
             pontoAtual = { lat: proximo.lat, lon: proximo.lon }; // Avança a posição de referência
         } else {
-            // Se o vizinho geográfico mais próximo exceder 1 km, encerramos a cadeia contígua aqui
             break;
         }
     }
 
-    // Aplica a limitação de quantidade de exibição selecionada no menu
-    const N = limiteQtd === 'ALL' ? resultadoOrdenado.length : parseInt(limiteQtd, 10);
-    return resultadoOrdenado.slice(0, N);
+    return resultadoOrdenado; // Retorna apenas os mais próximos encadeados sequencialmente
 }
 
 // --- REGRA INTERATIVA DE SELEÇÃO NO FILTRO SAFRA MULTIPLE ---
@@ -474,11 +477,13 @@ document.getElementById('select-safra').addEventListener('change', function() {
     const selectedValues = Array.from(this.selectedOptions).map(opt => opt.value);
     
     if (selectedValues.includes('TODOS') && selectedValues.length > 1) {
+        // Se o técnico selecionou "TODOS" como última ação, desmarque as opções individuais
         if (selectedValues[selectedValues.length - 1] === 'TODOS') {
             Array.from(this.options).forEach(opt => {
                 opt.selected = (opt.value === 'TODOS');
             });
         } else {
+            // Se ele selecionou meses específicos, desmarque o "TODOS"
             Array.from(this.options).forEach(opt => {
                 if (opt.value === 'TODOS') opt.selected = false;
             });
@@ -494,8 +499,10 @@ document.getElementById('btn-carregar').addEventListener('click', async () => {
     const tipo = document.getElementById('select-tipo').value;
     const limit = document.getElementById('select-quantidade').value;
 
+    // Define o limite dinâmico com base no seletor do usuário
     limiteExibicao = limit === 'ALL' ? 9999 : parseInt(limit, 10);
 
+    // Concatena todos os meses de safra selecionados no elemento multiple para envio em lote
     const safrasSelecionadasArray = Array.from(selectSafra.selectedOptions).map(opt => opt.value);
     const safra = safrasSelecionadasArray.length > 0 ? safrasSelecionadasArray.join(',') : 'TODOS';
 
@@ -509,6 +516,7 @@ document.getElementById('btn-carregar').addEventListener('click', async () => {
     const btnCarregar = document.getElementById('btn-carregar');
     const queryAtual = `${cidade}-${safra}-${tipo}-${limit}`;
 
+    // Se mudou o filtro ou se a fila está vazia, realiza uma nova busca do zero
     if (queryAtual !== queryAnterior || todosContratosOrdenados.length === 0) {
         queryAnterior = queryAtual;
         todosContratosOrdenados = [];
@@ -519,8 +527,9 @@ document.getElementById('btn-carregar').addEventListener('click', async () => {
 
         try {
             localizacaoTecnico = await obterGeolocalizacao();
-            document.getElementById('alert-gps-global').innerHTML = ""; 
+            document.getElementById('alert-gps-global').innerHTML = ""; // Limpa avisos se GPS funcionar
         } catch (e) {
+            // Em caso de falha de GPS, não quebra o fluxo de busca, apenas notifica e exibe botão de retentativa
             document.getElementById('alert-gps-global').innerHTML = `
                 <div style="background:#7f1d1d; color:#fca5a5; border:1px solid #ef4444; padding:15px; border-radius:8px; font-size:13px; text-align:center; margin-bottom:20px;">
                     ⚠️ GPS INDISPONÍVEL. A fila foi carregada sem ordenação de proximidade.<br>
@@ -531,9 +540,10 @@ document.getElementById('btn-carregar').addEventListener('click', async () => {
 
         btnCarregar.textContent = "BUSCANDO DADOS NO AZURE...";
 
+        // Varredura estrita e dinâmica baseada no dobro da quantidade selecionada no filtro
         let limiteSwaQuery = limit;
         if (limit !== 'ALL') {
-            limiteSwaQuery = parseInt(limit, 10) * 3; // Solicita uma amostra maior para o cálculo contíguo
+            limiteSwaQuery = parseInt(limit, 10) * 2;
         }
 
         let contratosFiltrados = [];
@@ -555,6 +565,7 @@ document.getElementById('btn-carregar').addEventListener('click', async () => {
             return;
         }
 
+        // Se encontrou dados, executa a geocodificação e constrói a cadeia de proximidade TSP
         if (contratosFiltrados.length > 0) {
             if (localizacaoTecnico) {
                 await geocodificarFila(contratosFiltrados);
@@ -565,25 +576,27 @@ document.getElementById('btn-carregar').addEventListener('click', async () => {
         }
     }
 
+    // Fatia os próximos contratos inéditos para exibição com base no limite real solicitado
     const blocoExibicao = todosContratosOrdenados.slice(indexExibicaoAtual, indexExibicaoAtual + limiteExibicao);
 
     if (blocoExibicao.length === 0) {
-        alert("Fim da rota! Não há mais contratos próximos pendentes com esses critérios.");
+        alert("Fim da fila! Não há mais contratos pendentes com esses critérios.");
         btnCarregar.disabled = false;
         btnCarregar.textContent = "CARREGAR FILA E ORDENAR POR PROXIMIDADE";
-        indexExibicaoAtual = 0; 
+        indexExibicaoAtual = 0; // Prepara reset para próxima busca
         return;
     }
 
     renderizarContratos(blocoExibicao);
     indexExibicaoAtual += limiteExibicao;
 
+    // Atualiza visualmente o botão indicando quantos contratos restam na fila geral
     if (indexExibicaoAtual < todosContratosOrdenados.length) {
         const restantes = todosContratosOrdenados.length - indexExibicaoAtual;
         btnCarregar.textContent = `CARREGAR PRÓXIMOS ${Math.min(limiteExibicao, restantes)} CONTRATOS 🧭`;
     } else {
         btnCarregar.textContent = "FIM DA FILA! RECARREGAR DO INÍCIO 🔄";
-        indexExibicaoAtual = 0; 
+        indexExibicaoAtual = 0; // Reseta o ponteiro caso queira rodar a fila novamente
     }
 
     btnCarregar.disabled = false;
@@ -595,7 +608,7 @@ function renderizarContratos(contratos) {
     container.innerHTML = "";
 
     if (contratos.length === 0) {
-        container.innerHTML = '<div style="text-align:center; padding:20px; color:#94a3b8;">Nenhum contrato localizado a menos de 1 km de distância nas proximidades.</div>';
+        container.innerHTML = '<div style="text-align:center; padding:20px; color:#94a3b8;">Nenhum contrato localizado para os critérios informados.</div>';
         return;
     }
 
@@ -610,20 +623,25 @@ function renderizarContratos(contratos) {
 
         const tagClass = item.tipo.includes('OPC') ? 'tipo-opcao' : 'tipo-inad';
         
+        // Texto de distância direto do técnico e sequencial (Incondicional e livre de falhas de lote)
         let distTexto = "";
         if (item.distanciaDireta && item.distanciaDireta !== 999999) {
             distTexto = ` • 📍 A ${item.distanciaDireta.toFixed(2)} Km de sua posição inicial`;
+            
+            // Adiciona a distância sequencial intermediária do cliente anterior se forem valores válidos e diferentes
             if (item.distancia && item.distancia !== 999999 && Math.abs(item.distancia - item.distanciaDireta) > 0.01) {
                 distTexto += ` (a ${item.distancia.toFixed(2)} Km do cliente anterior)`;
             }
         }
 
+        // Criando o card/badge de distância de você destacado no topo de cada card (Unificado e livre de falhas de índice)
         const distPill = (item.distanciaDireta && item.distanciaDireta !== 999999) 
             ? `<div style="background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.2); padding: 8px 12px; border-radius: 6px; font-size: 12px; font-weight: bold; color: #38bdf8; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
-                 📍 CONTRATO ${item.contrato} • ${item.distanciaDireta.toFixed(1)} KM DE VOCÊ ${item.distancia && item.distancia !== item.distanciaDireta ? `(A ${item.distancia.toFixed(2)} KM DA PARADA ANTERIOR)` : ''}
+                 📍 CONTRATO ${item.contrato} • ${item.distanciaDireta.toFixed(1)} KM DE VOCÊ
                </div>`
             : "";
 
+        // Formata os números de telefone para links limpos do WhatsApp
         const limparNumero = (num) => String(num).replace(/\D/g, '');
         const mensagemPronta = gerarMensagemWhatsapp(item.endereco, item.complemento, item.bairro, item.cidade, item.contrato);
         const mensagemCodificada = encodeURIComponent(mensagemPronta);
@@ -721,6 +739,7 @@ function irParaMapa(lat, lon, endereco, cidade) {
             window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lon}`, '_blank');
         }
     } else if (endereco) {
+        // Busca inteligente combinando a rua com a cidade
         const buscaEnderecoCompleto = `${endereco}, ${cidade || ''} - SP`;
         window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(buscaEnderecoCompleto)}`, '_blank');
     } else {
@@ -751,7 +770,7 @@ function selecionarStatusAtendimento(contratoId, status) {
     validarConclusao(contratoId);
 }
 
-// --- FLUXO DE ADICIONAR E EXCLUIR FOTOS DO EQUIPAMENTO ---
+// --- FLUXO DE ADICIONAR E EXCLUIR FOTOS DO EQUIPAMENTO (MÚLTIPLAS) ---
 function adicionarFotoEquipamento(contratoId, input) {
     const file = input.files[0];
     if (!file) return;
@@ -816,7 +835,7 @@ function renderizarFotosEquipamentos(contratoId) {
     });
 }
 
-// --- FLUXO DE ADICIONAR E EXCLUIR FOTO DA FACHADA ---
+// --- FLUXO DE ADICIONAR E EXCLUIR FOTO DA FACHADA (IMPRODUTIVO) ---
 function definirFotoFachada(contratoId, input) {
     const file = input.files[0];
     if (!file) return;
@@ -1053,6 +1072,7 @@ function iniciarAtendimento(contratoId) {
         btnAtender.textContent = "CANCELAR ATENDIMENTO ✕";
         btnAtender.style.background = "#ef4444";
         
+        // Tenta obter coordenadas no momento que inicia para otimizar tempo
         obterGeolocalizacao().then(coords => {
             localizacaoTecnico = coords;
             validarConclusao(contratoId);
