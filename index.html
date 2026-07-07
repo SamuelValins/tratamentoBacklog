@@ -288,6 +288,12 @@ let indexExibicaoAtual = 0;
 let limiteExibicao = 30; // Valor dinâmico baseado no select-quantidade
 let contratosCarregadosTemporarios = []; // Armazena os contratos carregados da busca original
 
+// Estados adicionais para Reversão no Histórico Local
+let fotosReversao = {};                // { contratoId: [ { base64: '...', equipamento: '...' } ] }
+let fotoFachadaReversao = {};          // { contratoId: 'base64' }
+let statusReversao = {};               // { contratoId: 'PRODUTIVO' | 'IMPRODUTIVO' }
+let equipamentosContratoReversao = {}; // { contratoId: [ 'equipamento1', 'equipamento2' ] }
+
 // --- GESTÃO DE LOGIN E AUTENTICAÇÃO ---
 async function validarAcesso(login, isAutoLogin = false) {
     const btnEntrar = document.getElementById('btn-login-entrar');
@@ -1238,7 +1244,7 @@ async function enviarAtendimentoFinal(contratoId) {
                 dataHora: new Date().toISOString(),
                 tecnico: tecnico,
                 codigo_baixa: statusAtivo === 'IMPRODUTIVO' ? payload.codigo_baixa : null,
-                observacao: statusAtivo === 'IMPRODUTIVO' ? payload.observacao_conclusao : "EQUIPAMENTO RETIRADO WITH SUCCESS",
+                observacao: statusAtivo === 'IMPRODUTIVO' ? payload.observacao_conclusao : "EQUIPAMENTO RETIRADO COM SUCESSO",
                 qtd_fotos: statusAtivo === 'PRODUTIVO' ? payload.imagens_etiqueta.length : 1
             };
             salvarNoHistoricoLocal(registroHistorico);
@@ -1309,6 +1315,7 @@ function renderizarListaHistorico() {
         
         const dataFormatada = new Date(item.dataHora).toLocaleString('pt-BR');
         const tagColor = item.status === 'PRODUTIVO' ? '#22c55e' : '#ef4444';
+        const showRevertBtn = item.status === 'IMPRODUTIVO';
 
         itemCard.innerHTML = `
             <div style="display:flex; justify-content:space-between; margin-bottom:8px; border-bottom:1px dashed #334155; padding-bottom:5px;">
@@ -1320,6 +1327,13 @@ function renderizarListaHistorico() {
             ${item.codigo_baixa ? `<div style="color:#cbd5e1; margin-bottom:4px;">🔑 <strong>Cód. Baixa:</strong> ${item.codigo_baixa}</div>` : ''}
             <div style="color:#94a3b8; font-style:italic; word-break: break-word;">💬 ${item.observacao || 'Sem observações'}</div>
             <div style="color:#cbd5e1; font-size:11px; margin-top:5px; text-align:right;">📷 Fotos salvas: ${item.qtd_fotos}</div>
+            
+            <div style="margin-top: 10px;" id="reversao-container-${item.contrato}">
+                ${showRevertBtn ? `
+                    <button type="button" class="btn-warning" style="width: 100%; font-size: 11px; padding: 8px; margin-top: 5px;" onclick="iniciarReversaoHistorico('${item.contrato}')">REVERTER ATENDIMENTO 🔄</button>
+                ` : ''}
+                <div id="box-reversao-${item.contrato}" style="display: none; margin-top: 10px;"></div>
+            </div>
         `;
         container.appendChild(itemCard);
     });
@@ -1355,6 +1369,351 @@ function iniciarAtendimento(contratoId) {
         }).catch(() => {
             console.log("Aguardando ativação do GPS manual.");
         });
+    }
+}
+
+// ==========================================
+// --- SISTEMA DE REVERSÃO NO PAINEL TÉCNICO ---
+// ==========================================
+
+// --- BUSCA OS MODELOS DO CONTRATO OU RETORNA VALORES DE FALLBACK ---
+async function obterEquipamentosDoContrato(contratoId) {
+    // 1. Tenta varrer localmente os contratos em memória na fila ativa do aparelho
+    let contratoEncontrado = contratosCarregadosTemporarios.find(c => String(c.contrato) === String(contratoId)) || 
+                             todosContratosOrdenados.find(c => String(c.contrato) === String(contratoId));
+    
+    if (contratoEncontrado && contratoEncontrado.modelo_equip) {
+        const modelos = contratoEncontrado.modelo_equip.split(/[,/;|]/).map(m => m.trim().toUpperCase()).filter(Boolean);
+        if (modelos.length > 0) return modelos;
+    }
+
+    // 2. Tenta fazer uma requisição silenciosa de recuperação da base do Azure
+    try {
+        const response = await fetch(`/api/obterContratos?limit=ALL`);
+        if (response.ok) {
+            const contratos = await response.json();
+            const found = contratos.find(c => String(c.contrato) === String(contratoId));
+            if (found && found.modelo_equip) {
+                const modelos = found.modelo_equip.split(/[,/;|]/).map(m => m.trim().toUpperCase()).filter(Boolean);
+                if (modelos.length > 0) return modelos;
+            }
+        }
+    } catch (e) {
+        console.error("Erro ao pesquisar equipamentos adicionais:", e);
+    }
+
+    // 3. Fallback genérico caso o contrato seja antigo ou não esteja na base ativa do dia
+    return ["MODEM WIFI / MTA CLARO", "DECODER HD / 4K CLARO", "ONU FIBRA", "REPETIDOR WIFI", "OUTROS"];
+}
+
+// --- FUNÇÃO PARA INICIAR PAINEL DE REVERSÃO NO CARD DE HISTÓRICO LOCAL ---
+async function iniciarReversaoHistorico(contratoId) {
+    const box = document.getElementById(`box-reversao-${contratoId}`);
+    if (!box) return;
+
+    if (box.style.display === "block") {
+        box.style.display = "none";
+        return;
+    }
+
+    box.style.display = "block";
+    box.innerHTML = `<div style="text-align: center; color: #94a3b8; padding: 10px; font-size: 11px;">Carregando configurações...</div>`;
+
+    const equipamentos = await obterEquipamentosDoContrato(contratoId);
+    equipamentosContratoReversao[contratoId] = equipamentos;
+
+    fotosReversao[contratoId] = [];
+    fotoFachadaReversao[contratoId] = null;
+    statusReversao[contratoId] = "PRODUTIVO"; // Começa setado para reverter como Produtivo
+
+    renderizarFormularioReversao(contratoId);
+}
+
+// --- RENDERIZADOR DO SUBFORMULÁRIO INTERNO ---
+function renderizarFormularioReversao(contratoId) {
+    const box = document.getElementById(`box-reversao-${contratoId}`);
+    if (!box) return;
+
+    const statusAtivo = statusReversao[contratoId];
+
+    let subFormHTML = "";
+
+    if (statusAtivo === "PRODUTIVO") {
+        subFormHTML = `
+            <div style="border-top: 1px dashed #334155; padding-top: 10px; margin-top: 10px;">
+                <label style="color: #22c55e; margin-top: 0; display:block; font-size: 12px; font-weight:bold;">📸 Fotos das Etiquetas dos Equipamentos Retirados</label>
+                <button type="button" class="btn-primary" style="margin-top: 5px; margin-bottom: 10px; font-size: 12px; padding: 8px 12px;" onclick="document.getElementById('input-foto-rev-${contratoId}').click()">📸 ADICIONAR FOTO DE ETIQUETA</button>
+                <input type="file" accept="image/*" capture="environment" id="input-foto-rev-${contratoId}" style="display: none;" onchange="adicionarFotoReversao('${contratoId}', this)">
+
+                <div id="grid-fotos-reversao-${contratoId}" style="display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 10px;"></div>
+
+                <label style="font-size:12px;">Equipamento Retirado (MAC / Serial)</label>
+                <input type="text" id="rev-mac-${contratoId}" placeholder="EX: MAC DO EQUIPAMENTO" oninput="this.value = this.value.toUpperCase()" style="padding:8px; font-size:13px;">
+            </div>
+        `;
+    } else {
+        subFormHTML = `
+            <div style="border-top: 1px dashed #334155; padding-top: 10px; margin-top: 10px;">
+                <label style="color: #ef4444; margin-top: 0; display:block; font-size: 12px; font-weight:bold;">📸 Foto da Fachada (Obrigatório)</label>
+                <button type="button" class="btn-primary" style="margin-top: 5px; margin-bottom: 10px; font-size: 12px; padding: 8px 12px;" onclick="document.getElementById('input-fachada-rev-${contratoId}').click()">📸 ADICIONAR FOTO DA FACHADA</button>
+                <input type="file" accept="image/*" capture="environment" id="input-fachada-rev-${contratoId}" style="display: none;" onchange="definirFotoFachadaReversao('${contratoId}', this)">
+
+                <div id="preview-fachada-rev-${contratoId}" style="margin-bottom: 10px;"></div>
+
+                <label style="font-size:12px;">Código de Baixa</label>
+                <input type="text" id="rev-codigo-baixa-${contratoId}" placeholder="EX: CLIENTE AUSENTE" oninput="this.value = this.value.toUpperCase()" style="padding:8px; font-size:13px;">
+
+                <label style="font-size:12px;">Descrição Opcional</label>
+                <textarea id="rev-obs-${contratoId}" placeholder="DIGITE INFORMAÇÕES ADICIONAIS" style="width: 100%; padding: 8px; border-radius: 6px; background: #0f172a; color: white; border: 1px solid #334155; margin-top: 5px; box-sizing: border-box; font-family: inherit; font-size: 13px;" oninput="this.value = this.value.toUpperCase()"></textarea>
+            </div>
+        `;
+    }
+
+    box.innerHTML = `
+        <div style="background: #1e293b; border: 1px solid #f59e0b; border-radius: 6px; padding: 12px; text-align: left; box-sizing: border-box; margin-top:10px;">
+            <h4 style="margin-top: 0; color: #f59e0b; font-size: 13px;">🔄 Reverter / Alterar Status</h4>
+            
+            <label style="margin-top: 0; font-size:12px;">Novo Resultado:</label>
+            <div style="display: flex; gap: 8px; margin-top: 5px;">
+                <button type="button" class="btn-status-choice ${statusAtivo === 'PRODUTIVO' ? 'active-prod' : ''}" style="padding: 8px; font-size:11px;" onclick="setReversaoStatus('${contratoId}', 'PRODUTIVO')">👍 PRODUTIVO</button>
+                <button type="button" class="btn-status-choice ${statusAtivo === 'IMPRODUTIVO' ? 'active-improd' : ''}" style="padding: 8px; font-size:11px;" onclick="setReversaoStatus('${contratoId}', 'IMPRODUTIVO')">👎 IMPRODUTIVO</button>
+            </div>
+
+            ${subFormHTML}
+
+            <div style="display: flex; gap: 8px; margin-top: 15px; justify-content: flex-end;">
+                <button type="button" class="btn-secondary" style="padding: 6px 12px; font-size: 11px; width:auto;" onclick="cancelarReversao('${contratoId}')">CANCELAR</button>
+                <button type="button" class="btn-success" style="padding: 6px 12px; font-size: 11px; width:auto;" onclick="salvarReversaoFinal('${contratoId}')">SALVAR</button>
+            </div>
+        </div>
+    `;
+
+    if (statusAtivo === "PRODUTIVO") {
+        renderizarFotosReversaoGrid(contratoId);
+    }
+}
+
+// --- ADICIONAR E RETIRAR EVIDÊNCIAS NO FLUXO DE REVERSÃO ---
+function adicionarFotoReversao(contratoId, input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const opcoesModelos = equipamentosContratoReversao[contratoId] || [];
+        const modeloInicial = opcoesModelos.length > 0 ? opcoesModelos[0] : "OUTROS";
+
+        fotosReversao[contratoId].push({
+            base64: e.target.result,
+            equipamento: modeloInicial
+        });
+
+        renderizarFotosReversaoGrid(contratoId);
+    };
+    reader.readAsDataURL(file);
+    input.value = "";
+}
+
+function renderizarFotosReversaoGrid(contratoId) {
+    const grid = document.getElementById(`grid-fotos-reversao-${contratoId}`);
+    if (!grid) return;
+
+    grid.innerHTML = "";
+    const fotos = fotosReversao[contratoId] || [];
+    const equipamentosDoContrato = equipamentosContratoReversao[contratoId] || [];
+
+    fotos.forEach((fotoObj, index) => {
+        const itemContainer = document.createElement('div');
+        itemContainer.style.background = "#0f172a";
+        itemContainer.style.border = "1px solid #334155";
+        itemContainer.style.borderRadius = "6px";
+        itemContainer.style.padding = "8px";
+        itemContainer.style.position = "relative";
+        itemContainer.style.display = "flex";
+        itemContainer.style.flexDirection = "column";
+
+        const img = document.createElement('img');
+        img.src = fotoObj.base64;
+        img.style.width = "100%";
+        img.style.aspectRatio = "4/3";
+        img.style.objectFit = "cover";
+        img.style.borderRadius = "4px";
+
+        const delBtn = document.createElement('button');
+        delBtn.type = "button";
+        delBtn.innerHTML = "✕";
+        delBtn.style.position = "absolute";
+        delBtn.style.top = "12px";
+        delBtn.style.right = "12px";
+        delBtn.style.background = "#ef4444";
+        delBtn.style.color = "white";
+        delBtn.style.border = "none";
+        delBtn.style.borderRadius = "50%";
+        delBtn.style.width = "18px";
+        delBtn.style.height = "18px";
+        delBtn.style.fontSize = "10px";
+        delBtn.style.cursor = "pointer";
+        delBtn.style.display = "flex";
+        delBtn.style.alignItems = "center";
+        delBtn.style.justifyContent = "center";
+        delBtn.style.padding = "0";
+        delBtn.onclick = () => {
+            fotosReversao[contratoId].splice(index, 1);
+            renderizarFotosReversaoGrid(contratoId);
+        };
+
+        const selectLabel = document.createElement('label');
+        selectLabel.textContent = "Equipamento:";
+        selectLabel.style.fontSize = "11px";
+        selectLabel.style.marginTop = "6px";
+        selectLabel.style.color = "#94a3b8";
+
+        const select = document.createElement('select');
+        select.style.padding = "4px";
+        select.style.fontSize = "11px";
+        select.style.marginTop = "2px";
+
+        equipamentosDoContrato.forEach(eq => {
+            const opt = document.createElement('option');
+            opt.value = eq;
+            opt.textContent = eq;
+            if (eq === fotoObj.equipamento) opt.selected = true;
+            select.appendChild(opt);
+        });
+
+        select.onchange = (e) => {
+            fotosReversao[contratoId][index].equipamento = e.target.value;
+        };
+
+        itemContainer.appendChild(img);
+        itemContainer.appendChild(delBtn);
+        itemContainer.appendChild(selectLabel);
+        itemContainer.appendChild(select);
+
+        grid.appendChild(itemContainer);
+    });
+}
+
+function definirFotoFachadaReversao(contratoId, input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        fotoFachadaReversao[contratoId] = e.target.result;
+
+        const preview = document.getElementById(`preview-fachada-rev-${contratoId}`);
+        if (preview) {
+            preview.innerHTML = `
+                <div style="position: relative; width: 80px; aspect-ratio: 1; margin-top: 8px;">
+                    <img src="${e.target.result}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 4px; border: 1px solid #475569;">
+                    <button type="button" style="position: absolute; top: 2px; right: 2px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 16px; height: 16px; font-size: 9px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; font-weight: bold;" onclick="removerFotoFachadaReversao('${contratoId}')">✕</button>
+                </div>
+            `;
+        }
+    };
+    reader.readAsDataURL(file);
+    input.value = "";
+}
+
+function removerFotoFachadaReversao(contratoId) {
+    fotoFachadaReversao[contratoId] = null;
+    const preview = document.getElementById(`preview-fachada-rev-${contratoId}`);
+    if (preview) preview.innerHTML = "";
+}
+
+function setReversaoStatus(contratoId, status) {
+    statusReversao[contratoId] = status;
+    renderizarFormularioReversao(contratoId);
+}
+
+function cancelarReversao(contratoId) {
+    const box = document.getElementById(`box-reversao-${contratoId}`);
+    if (box) box.style.display = "none";
+}
+
+// --- EXECUÇÃO FINAL DA GRAVAÇÃO DA REVERSÃO ---
+async function salvarReversaoFinal(contratoId) {
+    const statusAtivo = statusReversao[contratoId];
+    const tecnico = localStorage.getItem('login_tecnico');
+
+    if (statusAtivo === "PRODUTIVO") {
+        if (!fotosReversao[contratoId] || fotosReversao[contratoId].length === 0) {
+            alert("Erro: Adicione pelo menos uma foto de equipamento.");
+            return;
+        }
+        const mac = document.getElementById(`rev-mac-${contratoId}`).value.trim();
+        if (!mac) {
+            alert("Erro: Informe o MAC / Serial do equipamento.");
+            return;
+        }
+    } else {
+        if (!fotoFachadaReversao[contratoId]) {
+            alert("Erro: A foto de fachada é necessária para registros improdutivos.");
+            return;
+        }
+        const codigoBaixa = document.getElementById(`rev-codigo-baixa-${contratoId}`).value.trim();
+        if (!codigoBaixa) {
+            alert("Erro: Preencha o código de baixa.");
+            return;
+        }
+    }
+
+    const payload = {
+        contrato: contratoId,
+        status: statusAtivo,
+        data_reversao: new Date().toISOString(),
+        tecnico: tecnico
+    };
+
+    if (statusAtivo === "PRODUTIVO") {
+        payload.fotos = fotosReversao[contratoId].map(f => f.base64);
+        payload.equipamentos_associados = fotosReversao[contratoId].map(f => f.equipamento);
+        payload.mac = document.getElementById(`rev-mac-${contratoId}`).value.trim();
+    } else {
+        payload.fotos = [fotoFachadaReversao[contratoId]];
+        payload.codigo_baixa = document.getElementById(`rev-codigo-baixa-${contratoId}`).value.trim();
+        payload.observacao_conclusao = document.getElementById(`rev-obs-${contratoId}`).value.trim();
+    }
+
+    try {
+        const response = await fetch('/api/reverterAtendimento', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+            alert("Atendimento revertido e sincronizado com sucesso!");
+
+            // Atualiza o item de histórico local correspondente na máquina do técnico
+            let historicoLocal = [];
+            try {
+                historicoLocal = JSON.parse(localStorage.getItem('historico_atendimentos')) || [];
+            } catch (e) {
+                historicoLocal = [];
+            }
+
+            const itemIdx = historicoLocal.findIndex(h => String(h.contrato) === String(contratoId));
+            if (itemIdx !== -1) {
+                historicoLocal[itemIdx].status = statusAtivo;
+                historicoLocal[itemIdx].dataHora = payload.data_reversao;
+                historicoLocal[itemIdx].codigo_baixa = statusAtivo === 'IMPRODUTIVO' ? payload.codigo_baixa : null;
+                historicoLocal[itemIdx].observacao = statusAtivo === 'IMPRODUTIVO' ? payload.observacao_conclusao : "EQUIPAMENTO RETIRADO COM SUCESSO";
+                historicoLocal[itemIdx].qtd_fotos = statusAtivo === 'PRODUTIVO' ? payload.fotos.length : 1;
+                
+                localStorage.setItem('historico_atendimentos', JSON.stringify(historicoLocal));
+            }
+
+            // Atualiza a visualização do histórico local do técnico
+            renderizarListaHistorico();
+        } else {
+            const err = await response.json();
+            alert("Falha no Azure ao processar reversão: " + (err.error || "Erro interno"));
+        }
+    } catch (e) {
+        console.error("Erro na comunicação de rede:", e);
+        alert("Erro de rede ao salvar as edições de reversão.");
     }
 }
 
