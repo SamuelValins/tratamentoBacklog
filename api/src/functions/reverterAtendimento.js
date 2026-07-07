@@ -1,6 +1,5 @@
-const { app } = require('@azure/functions');
-const { TableClient } = require('@azure/data-tables');
-
+// --- 3. REVERTER ATENDIMENTO ---
+// =========================================================================
 app.http('reverterAtendimento', {
     methods: ['POST'],
     authLevel: 'anonymous',
@@ -23,8 +22,9 @@ app.http('reverterAtendimento', {
             let tipo = "DESCONEXÃO";
             try {
                 const entity = await historyTable.getEntity(loginLower, contrato);
-                cidade = entity.Cidade || "BAURU";
-                tipo = entity.TipoDesconexao || "DESCONEXÃO";
+                // Prevenção para mapear propriedades tanto com iniciais maiúsculas quanto minúsculas
+                cidade = entity.Cidade || entity.cidade || "BAURU";
+                tipo = entity.TipoDesconexao || entity.tipoDesconexao || "DESCONEXÃO";
                 
                 // Remove do histórico
                 await historyTable.deleteEntity(loginLower, contrato);
