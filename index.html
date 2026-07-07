@@ -187,7 +187,7 @@ button {
 </head>
 <body>
 
-<!-- Tela de Bloqueio/Login Integrada ao Azure [2] -->
+<!-- Tela de Bloqueio/Login Integrada ao Azure -->
 <div id="login-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0f172a; z-index: 20000; display: flex; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box;">
     <div class="card" style="width: 100%; max-width: 400px; padding: 30px; text-align: center; border: 1px solid #334155;">
         <h2 style="color: #38bdf8; margin-top: 0;">🚗 Claro Retirada</h2>
@@ -280,7 +280,7 @@ button {
     <div style="background: #1e293b; max-width: 500px; margin: 20px auto; padding: 20px; border-radius: 10px; border: 1px solid #334155; position: relative;">
         <button id="btn-fechar-historico" style="position: absolute; top: 10px; right: 10px; width: 30px; height: 30px; border-radius: 50%; background: #ef4444; border: none; font-weight: bold; font-size: 16px; cursor: pointer; color: white; display: flex; align-items: center; justify-content: center; padding:0;">✕</button>
         <h3 style="margin-top: 0; color: #38bdf8;">📋 Histórico Local de Atendimentos</h3>
-        <p style="font-size: 12px; color: #94a3b8; margin-bottom: 15px;">Abaixo você pode ver suas baixas. Use a engrenagem para **editar / reverter** visitas diretamente daqui [2].</p>
+        <p style="font-size: 12px; color: #94a3b8; margin-bottom: 15px;">Abaixo você pode ver suas baixas. Use a engrenagem para **editar / reverter** visitas diretamente daqui.</p>
         <div id="historico-lista-container" style="display: flex; flex-direction: column; gap: 10px;"></div>
     </div>
 </div>
@@ -294,7 +294,7 @@ let fotoFachada = {};
 let statusAtendimento = {}; 
 let contratosMapeadosBrutos = []; 
 
-// Estruturas de fotos reservadas para EDICÃO DENTRO DO HISTÓRICO LOCAL [2]
+// Estruturas de fotos reservadas para EDICÃO DENTRO DO HISTÓRICO LOCAL
 let fotosEquipamentosEdicao = {}; // { "contratoId": [ { src: base64, equipamento: "" } ] }
 let fotoFachadaEdicao = {};       
 let statusAtendimentoEdicao = {}; 
@@ -314,45 +314,73 @@ async function validarAcesso(login, isAutoLogin = false) {
     }
 
     try {
-        const response = await fetch('/api/validarTecnico', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ login: login })
-        });
+        let response;
+        let data;
+        let localSimulation = false;
 
-        if (response.ok) {
-            const data = await response.json();
-            
-            if (data.status === 'ATIVO') {
-                localStorage.setItem('login_tecnico', login);
-                document.getElementById('input-tecnico').value = login;
-                
-                const inputCidade = document.getElementById('input-cidade');
-                if (data.cidadeAtuacao && data.cidadeAtuacao !== 'TODAS') {
-                    inputCidade.value = data.cidadeAtuacao;
-                    inputCidade.disabled = true; 
-                    inputCidade.style.background = '#1e293b';
-                    inputCidade.style.color = '#94a3b8';
-                    inputCidade.style.cursor = 'not-allowed';
-                } else {
-                    inputCidade.disabled = false;
-                    inputCidade.style.background = '#0f172a';
-                    inputCidade.style.color = 'white';
-                    inputCidade.style.cursor = 'text';
-                    if (!inputCidade.value) inputCidade.value = "";
-                }
+        const isLocal = window.location.hostname === 'localhost' || 
+                        window.location.hostname === '127.0.0.1' || 
+                        window.location.protocol === 'file:';
 
-                exibirLogin(false);
-            } else if (data.status === 'BLOQUEADO') {
-                alert("Seu acesso foi bloqueado pelo administrador.");
-                efetuarLogout();
-            } else {
-                alert("Usuário não cadastrado.");
-                efetuarLogout();
+        try {
+            response = await fetch('/api/validarTecnico', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ login: login })
+            });
+
+            if (response.ok) {
+                data = await response.json();
+            } else if (response.status === 404 && isLocal) {
+                localSimulation = true;
             }
-        } else {
+        } catch (fetchError) {
+            console.error("Erro na API de Login:", fetchError);
+            if (isLocal) {
+                localSimulation = true;
+            } else {
+                throw fetchError;
+            }
+        }
+
+        if (localSimulation) {
+            console.warn("API indisponível ou ambiente de desenvolvimento local. Simulando acesso.");
+            data = {
+                status: 'ATIVO',
+                cidadeAtuacao: 'TODAS'
+            };
+        } else if (!response || !response.ok) {
             alert("Erro ao conectar com o serviço de validação.");
             if (isAutoLogin) exibirLogin(true);
+            return;
+        }
+
+        if (data && data.status === 'ATIVO') {
+            localStorage.setItem('login_tecnico', login);
+            document.getElementById('input-tecnico').value = login;
+            
+            const inputCidade = document.getElementById('input-cidade');
+            if (data.cidadeAtuacao && data.cidadeAtuacao !== 'TODAS') {
+                inputCidade.value = data.cidadeAtuacao;
+                inputCidade.disabled = true; 
+                inputCidade.style.background = '#1e293b';
+                inputCidade.style.color = '#94a3b8';
+                inputCidade.style.cursor = 'not-allowed';
+            } else {
+                inputCidade.disabled = false;
+                inputCidade.style.background = '#0f172a';
+                inputCidade.style.color = 'white';
+                inputCidade.style.cursor = 'text';
+                if (!inputCidade.value) inputCidade.value = "";
+            }
+
+            exibirLogin(false);
+        } else if (data && data.status === 'BLOQUEADO') {
+            alert("Seu acesso foi bloqueado pelo administrador.");
+            efetuarLogout();
+        } else {
+            alert("Usuário não cadastrado.");
+            efetuarLogout();
         }
     } catch (e) {
         console.error(e);
@@ -542,8 +570,8 @@ function ordenarFilaNearestNeighbor(contratos, startLat, startLon, limiteQtd) {
     
     if (!startLat || !startLon) {
         return [...contratos].sort((a, b) => {
-            const isAOpcao = String(a.tipo).toUpperCase().includes("OPC");
-            const isBOpcao = String(b.tipo).toUpperCase().includes("OPC");
+            const isAOpcao = String(a.tipo || '').toUpperCase().includes("OPC");
+            const isBOpcao = String(b.tipo || '').toUpperCase().includes("OPC");
             if (isAOpcao && !isBOpcao) return -1;
             if (!isAOpcao && isBOpcao) return 1;
             return 0;
@@ -610,6 +638,78 @@ function ordenarFilaNearestNeighbor(contratos, startLat, startLon, limiteQtd) {
     return resultadoOrdenado;
 }
 
+// --- FUNÇÃO AUXILIAR DE SIMULAÇÃO (TESTE SEM BACKEND) ---
+function obterContratosSimulados(cidade) {
+    return [
+        {
+            contrato: "12345678",
+            tipo: "OPÇÃO",
+            titular: "JOÃO SILVA DA COSTA",
+            endereco: "Av. Paulista, 1000",
+            complemento: "Apto 101",
+            bairro: "Bela Vista",
+            cidade: cidade || "SÃO PAULO",
+            qtd_equip: 2,
+            modelo_equip: "HFC ONT / DECODIFICADOR",
+            mac: "AA:BB:CC:DD:EE:01",
+            obs: "Cliente prefere atendimento no período da tarde."
+        },
+        {
+            contrato: "87654321",
+            tipo: "INADIMPLÊNCIA",
+            titular: "MARIA OLIVEIRA REIS",
+            endereco: "Rua Augusta, 500",
+            complemento: "",
+            bairro: "Consolação",
+            cidade: cidade || "SÃO PAULO",
+            qtd_equip: 1,
+            modelo_equip: "MODEM WI-FI",
+            mac: "AA:BB:CC:DD:EE:02",
+            obs: "Cachorro bravo na residência."
+        }
+    ];
+}
+
+// --- FLUXOS DO MAPEAMENTO E ROTAS ---
+async function prosseguirProcessamentoContratos(contratos, limit) {
+    const btnCarregar = document.getElementById('btn-carregar');
+    btnCarregar.disabled = true;
+    
+    await geocodificarFila(contratos);
+    
+    let lat = null;
+    let lon = null;
+    if (localizacaoTecnico && localizacaoTecnico.latitude && localizacaoTecnico.longitude) {
+        lat = localizacaoTecnico.latitude;
+        lon = localizacaoTecnico.longitude;
+    }
+    
+    btnCarregar.textContent = "ORDENANDO ROTAS...";
+    const ordenados = ordenarFilaNearestNeighbor(contratos, lat, lon, limit);
+    todosContratosOrdenados = ordenados;
+    
+    const limiteQtd = limit === 'ALL' ? ordenados.length : parseInt(limit, 10);
+    const contratosExibicao = ordenados.slice(0, limiteQtd);
+    
+    renderizarContratos(contratosExibicao);
+    
+    btnCarregar.disabled = false;
+    btnCarregar.textContent = "CARREGAR FILA E ORDENAR POR PROXIMIDADE";
+}
+
+function gerarMensagemWhatsapp(endereco, complemento, bairro, cidade, contrato) {
+    return `Olá! Sou o técnico de retirada credenciado pela Claro. Estou realizando rotas em sua região para recolhimento dos aparelhos desativados. Posso realizar a visita no endereço: ${endereco} ${complemento ? '- ' + complemento : ''} (${bairro})? Contrato: ${contrato}`;
+}
+
+function irParaMapa(lat, lon, endereco, cidade) {
+    if (lat && lon && lat !== 0 && lon !== 0) {
+        window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lon}`, '_blank');
+    } else {
+        const busca = encodeURIComponent(`${endereco}, ${cidade}, SP, Brasil`);
+        window.open(`https://www.google.com/maps/search/?api=1&query=${busca}`, '_blank');
+    }
+}
+
 // --- CONTROLE DE CARREGAMENTO E PAGINAÇÃO ---
 document.getElementById('btn-carregar').addEventListener('click', async () => {
     const login = localStorage.getItem('login_tecnico');
@@ -664,10 +764,17 @@ document.getElementById('btn-carregar').addEventListener('click', async () => {
     }
 
     let contratosFiltrados = [];
+    const isLocal = window.location.hostname === 'localhost' || 
+                    window.location.hostname === '127.0.0.1' || 
+                    window.location.protocol === 'file:';
+
     try {
         const response = await fetch(`/api/obterContratos?cidade=${cidade}&safra=${safra}&tipo=${tipo}&limit=${limiteSwaQuery}`);
         if (response.ok) {
             contratosFiltrados = await response.json();
+        } else if (response.status === 404 && isLocal) {
+            console.warn("Retornando dados fictícios em ambiente local para testes.");
+            contratosFiltrados = obterContratosSimulados(cidade);
         } else {
             alert("Erro ao buscar registros da base do Azure.");
             btnCarregar.disabled = false;
@@ -676,10 +783,15 @@ document.getElementById('btn-carregar').addEventListener('click', async () => {
         }
     } catch (err) {
         console.error("Erro na requisição: ", err);
-        alert("Falha de conexão.");
-        btnCarregar.disabled = false;
-        btnCarregar.textContent = "CARREGAR FILA E ORDENAR POR PROXIMIDADE";
-        return;
+        if (isLocal) {
+            console.warn("Utilizando contratos simulados em falha de conexão local.");
+            contratosFiltrados = obterContratosSimulados(cidade);
+        } else {
+            alert("Falha de conexão.");
+            btnCarregar.disabled = false;
+            btnCarregar.textContent = "CARREGAR FILA E ORDENAR POR PROXIMIDADE";
+            return;
+        }
     }
 
     if (contratosFiltrados.length === 0) {
@@ -805,7 +917,7 @@ function renderizarContratos(contratos) {
         card.className = 'contrato-card';
         card.id = `card-${item.contrato}`;
 
-        const tagClass = item.tipo.includes('OPC') ? 'tipo-opcao' : 'tipo-inad';
+        const tagClass = (item.tipo || '').includes('OPC') ? 'tipo-opcao' : 'tipo-inad';
         
         let distTexto = "";
         if (item.distanciaDireta && item.distanciaDireta !== 999999) {
@@ -822,7 +934,7 @@ function renderizarContratos(contratos) {
             : "";
 
         const limparNumero = (num) => String(num).replace(/\D/g, '');
-        const messageStr = gerarMensagemWhatsapp(item.endereco, item.complemento, item.bairro, item.cidade, item.contrato);
+        const messageStr = gerarMensagemWhatsapp(item.endereco || '', item.complemento || '', item.bairro || '', item.cidade || '', item.contrato || '');
         const msgCodificada = encodeURIComponent(messageStr);
 
         let htmlTelefones = "";
@@ -840,6 +952,9 @@ function renderizarContratos(contratos) {
                 htmlTelefones += `<a href="https://api.whatsapp.com/send?phone=55${numCelLimpo}&text=${msgCodificada}" target="_blank" style="color:#22c55e; text-decoration:none; font-weight:bold; margin-right:15px; font-size:12px;">💬 WhatsApp</a>`;
             }
         }
+
+        const enderecoEscapado = (item.endereco || '').replace(/'/g, "\\'");
+        const cidadeEscapada = (item.cidade || '').replace(/'/g, "\\'");
 
         card.innerHTML = `
             ${distPill}
@@ -862,7 +977,7 @@ function renderizarContratos(contratos) {
             ${item.obs ? `<div class="info-linha" style="color: #f59e0b;"><strong>Obs:</strong> ${item.obs}</div>` : ''}
             
             <div style="display:flex; gap:10px; margin-top:15px;">
-                <button class="btn-primary" style="margin-top:0;" onclick="irParaMapa(${item.lat || 0}, ${item.lon || 0}, '${item.endereco.replace(/'/g, "\\'")}', '${item.cidade}')">🧭 MAPA</button>
+                <button class="btn-primary" style="margin-top:0;" onclick="irParaMapa(${item.lat || 0}, ${item.lon || 0}, '${enderecoEscapado}', '${cidadeEscapada}')">🧭 MAPA</button>
                 <button class="btn-warning" style="margin-top:0;" id="btn-atender-${item.contrato}" onclick="iniciarAtendimento('${item.contrato}')">INICIAR ATENDIMENTO</button>
             </div>
             
@@ -908,6 +1023,27 @@ function renderizarContratos(contratos) {
 }
 
 // --- FLUXOS DO PREENCHIMENTO PRINCIPAL ---
+function selecionarStatusAtendimento(contratoId, status) {
+    statusAtendimento[contratoId] = status;
+    const btnProd = document.getElementById(`btn-prod-${contratoId}`);
+    const btnImprod = document.getElementById(`btn-improd-${contratoId}`);
+    const boxProd = document.getElementById(`box-produtivo-${contratoId}`);
+    const boxImprod = document.getElementById(`box-improdutivo-${contratoId}`);
+
+    if (status === 'PRODUTIVO') {
+        btnProd.classList.add('active-prod');
+        btnImprod.classList.remove('active-improd');
+        boxProd.style.display = 'block';
+        boxImprod.style.display = 'none';
+    } else {
+        btnProd.classList.remove('active-prod');
+        btnImprod.classList.add('active-improd');
+        boxProd.style.display = 'none';
+        boxImprod.style.display = 'block';
+    }
+    validarConclusao(contratoId);
+}
+
 function adicionarFotoEquipamento(contratoId, input) {
     const file = input.files[0];
     if (!file) return;
@@ -1111,6 +1247,10 @@ async function enviarAtendimentoFinal(contratoId) {
         payload.observacao_conclusao = document.getElementById(`input-desc-improdutivo-${contratoId}`).value.trim();
     }
 
+    const isLocal = window.location.hostname === 'localhost' || 
+                    window.location.hostname === '127.0.0.1' || 
+                    window.location.protocol === 'file:';
+
     try {
         const response = await fetch('/api/concluirAtendimento', {
             method: 'POST',
@@ -1118,12 +1258,14 @@ async function enviarAtendimentoFinal(contratoId) {
             body: JSON.stringify(payload)
         });
 
-        if (response.ok) {
+        if (response.ok || (response.status === 404 && isLocal)) {
+            if (isLocal && !response.ok) {
+                console.warn("Salvando registro simulado localmente devido a ambiente offline.");
+            }
             alert(`Atendimento do contrato ${contratoId} registrado com sucesso!`);
 
             const contratoOrig = contratosMapeadosBrutos.find(c => c.contrato === contratoId);
 
-            // Grava no histórico local incluindo a propriedade modelo_equip para futuras edições [2]
             const registroHistorico = {
                 contrato: contratoId,
                 status: statusAtivo,
@@ -1132,7 +1274,7 @@ async function enviarAtendimentoFinal(contratoId) {
                 codigo_baixa: statusAtivo === 'IMPRODUTIVO' ? payload.codigo_baixa : null,
                 observacao: statusAtivo === 'PRODUTIVO' ? observacaoRetirados : payload.observacao_conclusao,
                 qtd_fotos: statusAtivo === 'PRODUTIVO' ? payload.imagens_etiqueta.length : 1,
-                modelo_equip: contratoOrig ? contratoOrig.modelo_equip : "" // Salva modelos para permitir edições offline [2]
+                modelo_equip: contratoOrig ? contratoOrig.modelo_equip : "" 
             };
             salvarNoHistoricoLocal(registroHistorico);
 
@@ -1154,15 +1296,39 @@ async function enviarAtendimentoFinal(contratoId) {
         }
     } catch (err) {
         console.error(err);
-        alert("Erro de rede.");
-        btnSalvar.disabled = false;
-        btnSalvar.textContent = "SALVAR ATENDIMENTO";
+        if (isLocal) {
+            alert(`Atendimento ${contratoId} concluído localmente (Ambiente de Teste).`);
+            const contratoOrig = contratosMapeadosBrutos.find(c => c.contrato === contratoId);
+
+            const registroHistorico = {
+                contrato: contratoId,
+                status: statusAtivo,
+                dataHora: new Date().toISOString(),
+                tecnico: tecnico,
+                codigo_baixa: statusAtivo === 'IMPRODUTIVO' ? payload.codigo_baixa : null,
+                observacao: statusAtivo === 'PRODUTIVO' ? observacaoRetirados : payload.observacao_conclusao,
+                qtd_fotos: statusAtivo === 'PRODUTIVO' ? (payload.imagens_etiqueta || []).length : 1,
+                modelo_equip: contratoOrig ? contratoOrig.modelo_equip : "" 
+            };
+            salvarNoHistoricoLocal(registroHistorico);
+
+            const card = document.getElementById(`card-${contratoId}`);
+            if (card) card.remove();
+
+            delete fotosEquipamentos[contratoId];
+            delete fotoFachada[contratoId];
+            delete statusAtendimento[contratoId];
+        } else {
+            alert("Erro de rede ao salvar atendimento.");
+            btnSalvar.disabled = false;
+            btnSalvar.textContent = "SALVAR ATENDIMENTO";
+        }
     }
 }
 
 
 // =========================================================================
-// --- NOVO SISTEMA: GESTÃO DE EDICÃO DENTRO DO HISTÓRICO LOCAL [2] ---
+// --- SISTEMA DE HISTÓRICO LOCAL E EDICÕES ---
 // =========================================================================
 
 function salvarNoHistoricoLocal(novoRegistro) {
@@ -1173,14 +1339,12 @@ function salvarNoHistoricoLocal(novoRegistro) {
         historico = [];
     }
     
-    // Evita duplicados em inserções locais
     historico = historico.filter(x => x.contrato !== novoRegistro.contrato);
     historico.unshift(novoRegistro); 
     if (historico.length > 50) historico = historico.slice(0, 50);
     localStorage.setItem('historico_atendimentos', JSON.stringify(historico));
 }
 
-// RENDERIZA A LISTA DO HISTÓRICO LOCAL COM O EMBEDDED EDIT-FORM INTEGRADO [2]
 function renderizarListaHistorico() {
     const container = document.getElementById('historico-lista-container');
     container.innerHTML = '';
@@ -1209,7 +1373,6 @@ function renderizarListaHistorico() {
         const dataFormatada = new Date(item.dataHora).toLocaleString('pt-BR');
         const tagColor = item.status === 'PRODUTIVO' ? '#22c55e' : '#ef4444';
 
-        // Caixa de Edição Inline embutida em cada card [2]
         const painelEdicaoHTML = `
             <div id="painel-edicao-local-${item.contrato}" style="display: none; border-top: 1px dashed #334155; padding-top: 15px; margin-top: 15px;">
                 <h4 style="margin-top:0; color:#cbd5e1; font-size:13px;">⚙️ Editar Atendimento: ${item.contrato}</h4>
@@ -1278,24 +1441,17 @@ function renderizarListaHistorico() {
     });
 }
 
-// INICIALIZADOR DE EDICÃO DENTRO DO MODAL DE HISTÓRICO
 function iniciarEdicaoLocal(contratoId) {
-    // Esconde visualizador estático do card
     document.getElementById(`bloco-info-local-${contratoId}`).style.display = "none";
-    // Exibe o painel inline do formulário de edicão
     document.getElementById(`painel-edicao-local-${contratoId}`).style.display = "block";
 
-    // Busca dados no cache local
     const historico = JSON.parse(localStorage.getItem('historico_atendimentos')) || [];
     const item = historico.find(x => x.contrato === contratoId);
 
     if (item) {
-        // Inicializa as estruturas temporárias da edicão
         fotosEquipamentosEdicao[contratoId] = [];
         fotoFachadaEdicao[contratoId] = null;
         statusAtendimentoEdicao[contratoId] = item.status;
-
-        // Ativa o botão correspondente do status inicial
         selecionarStatusEdicao(contratoId, item.status);
     }
 }
@@ -1309,7 +1465,6 @@ function cancelarEdicaoLocal(contratoId) {
     delete statusAtendimentoEdicao[contratoId];
 }
 
-// ALTERNA ENTRE PRODUTIVO OU IMPRODUTIVO NO HISTÓRICO LOCAL [2]
 function selecionarStatusEdicao(contratoId, status) {
     statusAtendimentoEdicao[contratoId] = status;
 
@@ -1332,7 +1487,6 @@ function selecionarStatusEdicao(contratoId, status) {
     validarConclusaoEdicao(contratoId);
 }
 
-// ADICIONA FOTOS NO GRID INTERNO DE EDICÃO [2]
 function adicionarFotoEquipamentoEdicao(contratoId, input, modeloEquipStr) {
     const file = input.files[0];
     if (!file) return;
@@ -1500,7 +1654,6 @@ function validarConclusaoEdicao(contratoId) {
     }
 }
 
-// SALVA A ALTERAÇÃO ENVIANDO-A NOVAMENTE PARA O AZURE (SOBRESCREVE O REGISTRO ANTERIOR) [2]
 async function salvarAtendimentoEdicaoFinal(contratoId) {
     const statusAtivo = statusAtendimentoEdicao[contratoId];
     const tecnico = localStorage.getItem('login_tecnico');
@@ -1535,6 +1688,10 @@ async function salvarAtendimentoEdicaoFinal(contratoId) {
         payload.observacao_conclusao = document.getElementById(`input-desc-improd-edicao-${contratoId}`).value.trim();
     }
 
+    const isLocal = window.location.hostname === 'localhost' || 
+                    window.location.hostname === '127.0.0.1' || 
+                    window.location.protocol === 'file:';
+
     try {
         const response = await fetch('/api/concluirAtendimento', {
             method: 'POST',
@@ -1542,13 +1699,15 @@ async function salvarAtendimentoEdicaoFinal(contratoId) {
             body: JSON.stringify(payload)
         });
 
-        if (response.ok) {
+        if (response.ok || (response.status === 404 && isLocal)) {
+            if (isLocal && !response.ok) {
+                console.warn("Salvando alteração simulada localmente (API indisponível).");
+            }
             alert(`Atendimento do contrato ${contratoId} atualizado com sucesso no Azure!`);
 
             const historico = JSON.parse(localStorage.getItem('historico_atendimentos')) || [];
             const itemOrig = historico.find(x => x.contrato === contratoId);
 
-            // Grava no histórico local incluindo a propriedade modelo_equip para futuras edições [2]
             const registroHistorico = {
                 contrato: contratoId,
                 status: statusAtivo,
@@ -1561,7 +1720,6 @@ async function salvarAtendimentoEdicaoFinal(contratoId) {
             };
             salvarNoHistoricoLocal(registroHistorico);
 
-            // Deleta lixos de memoria temporários
             delete fotosEquipamentosEdicao[contratoId];
             delete fotoFachadaEdicao[contratoId];
             delete statusAtendimentoEdicao[contratoId];
@@ -1573,16 +1731,43 @@ async function salvarAtendimentoEdicaoFinal(contratoId) {
         }
     } catch (err) {
         console.error(err);
-        alert("Erro de conexão.");
-        btnSalvar.disabled = false;
+        if (isLocal) {
+            alert(`Atendimento ${contratoId} atualizado localmente para testes.`);
+            const historico = JSON.parse(localStorage.getItem('historico_atendimentos')) || [];
+            const itemOrig = historico.find(x => x.contrato === contratoId);
+
+            const registroHistorico = {
+                contrato: contratoId,
+                status: statusAtivo,
+                dataHora: new Date().toISOString(),
+                tecnico: tecnico,
+                codigo_baixa: statusAtivo === 'IMPRODUTIVO' ? payload.codigo_baixa : null,
+                observacao: statusAtivo === 'PRODUTIVO' ? observacaoRetirados : payload.observacao_conclusao,
+                qtd_fotos: statusAtivo === 'PRODUTIVO' ? (payload.imagens_etiqueta || []).length : 1,
+                modelo_equip: itemOrig ? itemOrig.modelo_equip : "" 
+            };
+            salvarNoHistoricoLocal(registroHistorico);
+
+            delete fotosEquipamentosEdicao[contratoId];
+            delete fotoFachadaEdicao[contratoId];
+            delete statusAtendimentoEdicao[contratoId];
+
+            renderizarListaHistorico();
+        } else {
+            alert("Erro de conexão ao salvar.");
+            btnSalvar.disabled = false;
+        }
     }
 }
 
-// --- REMOVER/REVERTER REGISTRO LOCAL E MANDAR API PARA ATUALIZAR FILA ---
 async function reverterBaixaLocal(contrato, tecnico) {
     if (!confirm(`Confirmar reversão do contrato ${contrato}? Ele retornará para a sua fila ativa de retirada.`)) {
         return;
     }
+
+    const isLocal = window.location.hostname === 'localhost' || 
+                    window.location.hostname === '127.0.0.1' || 
+                    window.location.protocol === 'file:';
 
     try {
         const response = await fetch('/api/reverterAtendimento', {
@@ -1591,7 +1776,7 @@ async function reverterBaixaLocal(contrato, tecnico) {
             body: JSON.stringify({ contrato, tecnico })
         });
 
-        if (response.ok) {
+        if (response.ok || (response.status === 404 && isLocal)) {
             alert("Contrato restaurado para fila ativa de retirada!");
             
             let historico = JSON.parse(localStorage.getItem('historico_atendimentos')) || [];
@@ -1604,7 +1789,17 @@ async function reverterBaixaLocal(contrato, tecnico) {
             alert("Erro ao reverter baixa.");
         }
     } catch (e) {
-        alert("Falha de rede ao tentar reverter.");
+        if (isLocal) {
+            alert("Contrato restaurado para a fila ativa (Simulação de teste).");
+            let historico = JSON.parse(localStorage.getItem('historico_atendimentos')) || [];
+            historico = historico.filter(x => x.contrato !== contrato);
+            localStorage.setItem('historico_atendimentos', JSON.stringify(historico));
+
+            renderizarListaHistorico();
+            document.getElementById('btn-carregar').click();
+        } else {
+            alert("Falha de rede ao tentar reverter.");
+        }
     }
 }
 
