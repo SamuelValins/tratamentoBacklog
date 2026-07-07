@@ -3,11 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Painel Gerencial - Carga de Contratos</title>
-
-<!-- Biblioteca para processar arquivos CSV de forma rápida -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-
+<title>Painel Gerencial - Administração de Técnicos</title>
 <style>
 body {
     margin: 0;
@@ -26,21 +22,9 @@ body {
     border-bottom: 1px solid #334155;
     box-sizing: border-box;
 }
-.btn-nav {
-    background: #475569;
-    color: white;
-    padding: 8px 15px;
-    border-radius: 6px;
-    font-size: 13px;
-    font-weight: bold;
-    cursor: pointer;
-    text-decoration: none;
-    transition: background 0.2s;
-}
-.btn-nav:hover { background: #334155; }
 .container {
     padding: 20px;
-    max-width: 650px;
+    max-width: 900px;
     margin: 0 auto;
 }
 .card {
@@ -55,6 +39,7 @@ label {
     margin-top: 15px;
     font-size: 14px;
     color: #94a3b8;
+    font-weight: bold;
 }
 input, select {
     width: 100%;
@@ -70,266 +55,783 @@ input, select {
 }
 button {
     color: white;
-    padding: 14px 20px;
+    padding: 12px 18px;
     border: none;
     border-radius: 8px;
-    width: 100%;
     font-weight: bold;
     cursor: pointer;
-    font-size: 16px;
+    font-size: 14px;
     transition: background 0.2s;
 }
-.btn-primary { background: #2563eb; margin-top: 20px; }
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.btn-primary { background: #2563eb; }
 .btn-primary:active { background: #1d4ed8; }
-.btn-primary:disabled { background: #1e293b; color: #4b5563; cursor: not-allowed; }
+.btn-danger { background: #ef4444; }
+.btn-danger:active { background: #b91c1c; }
+.btn-warning { background: #f59e0b; color: #0f172a; }
+.btn-warning:active { background: #d97706; }
+.btn-success { background: #22c55e; }
+.btn-success:active { background: #16a34a; }
+.btn-secondary { background: #475569; }
 
-.radio-group {
-    display: flex;
-    gap: 15px;
-    margin-top: 10px;
-}
-.radio-option {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 14px;
-    cursor: pointer;
-}
-.radio-option input {
-    width: auto;
-    margin: 0;
-}
+/* Tabela de Técnicos */
 .table-container {
     overflow-x: auto;
     margin-top: 15px;
-    border: 1px solid #334155;
-    border-radius: 8px;
 }
 table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 11px;
     text-align: left;
-    background: #0f172a;
+    font-size: 14px;
 }
 th, td {
-    padding: 8px 10px;
+    padding: 12px 15px;
     border-bottom: 1px solid #334155;
-    white-space: nowrap;
 }
-th { background: #1e293b; color: #38bdf8; }
+th {
+    background-color: #0f172a;
+    color: #94a3b8;
+    font-weight: bold;
+}
+tr:hover {
+    background-color: #1e293b;
+}
+
+/* Badges e Contadores */
+.badge {
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-weight: bold;
+}
+.badge-ativo { background: #14532d; color: #4ade80; }
+.badge-bloqueado { background: #7f1d1d; color: #fca5a5; }
+
+.contador {
+    font-weight: bold;
+    font-size: 14px;
+}
+.text-produtivo { color: #4ade80; }
+.text-improdutivo { color: #f87171; }
+
+/* Estilo dos Modais */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(15, 23, 42, 0.85);
+    z-index: 10000;
+    justify-content: center;
+    align-items: center;
+}
+.modal-content {
+    background: #1e293b;
+    max-width: 500px;
+    width: 90%;
+    padding: 25px;
+    border-radius: 10px;
+    border: 1px solid #334155;
+    position: relative;
+    box-sizing: border-box;
+}
+
+/* Lista de Atendimentos em Duas Colunas [2] */
+.historico-lista-scroll {
+    max-height: 380px;
+    overflow-y: auto;
+    margin-top: 15px;
+    padding-right: 5px;
+}
+.historico-card {
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+    display: grid;
+    grid-template-columns: 1.2fr 1fr; /* Lado esquerdo dados, lado direito imagens [2] */
+    gap: 15px;
+    align-items: start;
+}
+.historico-info {
+    font-size: 13px;
+    line-height: 1.5;
+}
+.historico-info strong {
+    color: #94a3b8;
+}
+.mac-texto {
+    font-family: 'Courier New', Courier, monospace;
+    background: #1e293b;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: bold;
+    color: #38bdf8;
+    font-size: 12px;
+}
+.evidencias-coluna {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.evidencias-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(75px, 1fr));
+    gap: 8px;
+}
+.foto-atendimento {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    border-radius: 6px;
+    border: 1px solid #334155;
+    background-color: #1e293b;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+.foto-atendimento:hover {
+    transform: scale(1.05);
+}
+
+/* Área de Filtros */
+.grid-filtros {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    margin-bottom: 5px;
+}
 </style>
 </head>
 <body>
 
 <div class="header">
-    <span>📊 Painel Gerencial</span>
-    <a href="/index.html" class="btn-nav">Voltar ao App 📷</a>
+    <span>⚙️ Painel Gerencial - Administração de Técnicos</span>
+    <button class="btn-nav" onclick="carregarDados()">ATUALIZAR DADOS 🔄</button>
 </div>
 
 <div class="container">
+    
+    <!-- Botão de controle de exibição do Cadastro -->
+    <div style="display: flex; justify-content: flex-end; margin-bottom: 15px;">
+        <button id="btn-toggle-cadastro" class="btn-primary" onclick="toggleCadastro()">➕ CADASTRAR NOVO TÉCNICO</button>
+    </div>
+
+    <!-- Formulário de Cadastro (Inicia oculto) -->
+    <div class="card" id="card-cadastro" style="display: none; border-color: #22c55e;">
+        <h2 style="margin-top: 0; color: #22c55e; font-size: 18px;">👤 Cadastrar Novo Técnico</h2>
+        <form id="form-cadastro" onsubmit="adicionarTecnico(event)">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div>
+                    <label>Nome Completo</label>
+                    <input type="text" id="cad-nome" placeholder="EX: CARLOS SILVA" required oninput="this.value = this.value.toUpperCase()">
+                </div>
+                <div>
+                    <label>Login de Acesso</label>
+                    <input type="text" id="cad-login" placeholder="EX: SILVA.CARLOS" required oninput="this.value = this.value.toLowerCase().trim()">
+                </div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div>
+                    <label>Empresa / Parceiro</label>
+                    <input type="text" id="cad-empresa" placeholder="EX: CLARO / PARCEIRO X" required oninput="this.value = this.value.toUpperCase()">
+                </div>
+                <div>
+                    <label>Cidade de Atuação <span style="font-size: 11px; color: #94a3b8;">(Digite "TODAS" ou a cidade)</span></label>
+                    <input type="text" id="cad-cidade" placeholder="EX: BAURU OU TODAS" required oninput="this.value = this.value.toUpperCase()">
+                </div>
+            </div>
+            
+            <button type="submit" id="btn-cadastrar-submit" class="btn-success" style="margin-top: 20px; width: 100%;">CADASTRAR E AUTORIZAR USUÁRIO</button>
+        </form>
+    </div>
+
+    <!-- Área de Filtros e Busca -->
     <div class="card">
-        <h2>Importar Planilha de Contratos</h2>
+        <h3 style="margin-top: 0; color: #38bdf8; font-size: 16px;">🔍 Filtros de Busca</h3>
         
-        <!-- Controle de Acesso -->
-        <label>Chave de Acesso Gerencial</label>
-        <input type="password" id="input-senha" placeholder="DIGITE A SENHA DE GERENTE">
-
-        <!-- Selecionar Modo de Carga -->
-        <label>Modo de Importação</label>
-        <div class="radio-group">
-            <label class="radio-option">
-                <input type="radio" name="modo-carga" value="adicionar" checked>
-                Anexar novos dados (Acumulativo)
-            </label>
-            <label class="radio-option">
-                <input type="radio" name="modo-carga" value="substituir">
-                Substituir tudo (Limpar fila e reescrever)
-            </label>
-        </div>
-
-        <!-- Seletor do Arquivo CSV -->
-        <label>Selecione a Planilha (.CSV)</label>
-        <input type="file" id="input-csv" accept=".csv" style="padding: 10px 0;">
-
-        <!-- Detalhes do arquivo processado -->
-        <div id="info-carga" style="display:none; margin-top: 15px; font-size:13px; color:#22c55e; font-weight:bold;"></div>
-
-        <!-- Pré-visualização da tabela -->
-        <div id="preview-section" style="display: none;">
-            <label>Pré-visualização dos dados lidos (Primeiras 5 linhas):</label>
-            <div class="table-container">
-                <table id="tabela-preview">
-                    <thead>
-                        <tr>
-                            <th>RowKey</th>
-                            <th>PartitionKey</th>
-                            <th>Nome Titular</th>
-                            <th>Endereço</th>
-                            <th>Tipo Retirada</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
+        <div class="grid-filtros">
+            <div>
+                <label style="margin-top: 0;">Filtrar por Usuário (Nome ou Login)</label>
+                <input type="text" id="filtro-usuario" placeholder="DIGITE O NOME OU LOGIN..." oninput="renderizarTabela()">
+            </div>
+            <div>
+                <label style="margin-top: 0;">Filtrar por Empresa</label>
+                <select id="filtro-empresa" onchange="renderizarTabela()">
+                    <option value="TODAS">TODAS AS EMPRESAS</option>
+                </select>
             </div>
         </div>
 
-        <button id="btn-enviar" class="btn-primary" disabled>PROCESSAR E ENVIAR AO AZURE</button>
+        <div class="grid-filtros" style="margin-top: 15px;">
+            <div>
+                <label style="margin-top: 0;">Período: Data Inicial</label>
+                <input type="date" id="filtro-data-inicio" onchange="handleFiltroDataAlterado()">
+            </div>
+            <div>
+                <label style="margin-top: 0;">Período: Data Final</label>
+                <input type="date" id="filtro-data-fim" onchange="handleFiltroDataAlterado()">
+            </div>
+        </div>
+
+        <div style="margin-top: 15px;">
+            <label style="margin-top: 0; margin-bottom: 5px;">Filtrar Resultados de Técnicos</label>
+            <div style="display: flex; gap: 8px;">
+                <button id="btn-main-todos" class="btn-primary" style="padding: 10px 15px; font-size: 12px; flex: 1;" onclick="setMainFiltroStatus('TODOS')">📋 TODOS</button>
+                <button id="btn-main-prod" class="btn-secondary" style="padding: 10px 15px; font-size: 12px; flex: 1;" onclick="setMainFiltroStatus('PRODUTIVO')">👍 PRODUTIVO</button>
+                <button id="btn-main-improd" class="btn-secondary" style="padding: 10px 15px; font-size: 12px; flex: 1;" onclick="setMainFiltroStatus('IMPRODUTIVO')">👎 IMPRODUTIVO</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabela de Usuários Cadastrados -->
+    <div class="card">
+        <h2 style="margin-top: 0; color: #38bdf8; font-size: 18px;">📋 Usuários Autorizados</h2>
+        <p style="font-size: 12px; color: #94a3b8; margin-bottom: 15px;">Clique no <strong>nome do técnico</strong> para ver o histórico detalhado de atendimentos dele [1].</p>
+        
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>Login</th>
+                        <th>Empresa</th>
+                        <th>Cidade</th>
+                        <th>Status</th>
+                        <th style="text-align: center;">Produtivos</th>
+                        <th style="text-align: center;">Improdutivos</th>
+                        <th style="text-align: center;">Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="tabela-usuarios-corpo">
+                    <tr><td colspan="8" style="text-align: center; color: #94a3b8; padding: 20px;">Carregando informações da base de dados do Azure...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Configuração de Usuário -->
+<div id="modal-configuracao" class="modal-overlay">
+    <div class="modal-content">
+        <h3 style="margin-top: 0; color: #38bdf8;">⚙️ Configurar Técnico</h3>
+        <p id="modal-subtitulo" style="font-size: 12px; color: #94a3b8; margin-bottom: 20px;"></p>
+        
+        <input type="hidden" id="edit-login-hidden">
+        
+        <label>Nome do Técnico</label>
+        <input type="text" id="edit-nome" oninput="this.value = this.value.toUpperCase()">
+        
+        <label>Empresa</label>
+        <input type="text" id="edit-empresa" oninput="this.value = this.value.toUpperCase()">
+
+        <label>Cidade de Atuação</label>
+        <input type="text" id="edit-cidade" oninput="this.value = this.value.toUpperCase()">
+
+        <label>Status de Acesso</label>
+        <select id="edit-status">
+            <option value="ATIVO">LIBERADO / ATIVO</option>
+            <option value="BLOQUEADO">BLOQUEADO / INATIVO</option>
+        </select>
+
+        <div style="display: flex; gap: 10px; margin-top: 25px; justify-content: flex-end;">
+            <button type="button" class="btn-secondary" onclick="fecharModal('modal-configuracao')">CANCELAR</button>
+            <button type="button" class="btn-danger" id="btn-excluir-modal" onclick="confirmarExclusao()">EXCLUIR USUÁRIO</button>
+            <button type="button" class="btn-success" id="btn-salvar-modal" onclick="salvarAlteracoes()">SALVAR ALTERAÇÕES</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Histórico de Atendimentos do Técnico [1] -->
+<div id="modal-historico" class="modal-overlay">
+    <div class="modal-content" style="max-width: 700px; width: 95%;">
+        <h3 style="margin-top: 0; color: #38bdf8; display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+            <span id="historico-titulo-tecnico">📋 Histórico de Atendimentos</span>
+            <button class="btn-danger" style="padding: 6px 12px; font-size: 12px;" onclick="fecharModal('modal-historico')">✕ FECHAR</button>
+        </h3>
+        <p style="font-size: 12px; color: #94a3b8; margin-bottom: 15px;">Listagem lateral: Informações à esquerda e múltiplas evidências à direita [2].</p>
+        
+        <!-- Botões de Filtragem Interna de Histórico -->
+        <div style="display: flex; gap: 8px; margin-bottom: 15px;">
+            <button id="btn-filtro-hist-todos" class="btn-primary" style="padding: 8px 12px; font-size: 12px; flex: 1;" onclick="filtrarHistorico('TODOS')">📋 TODOS</button>
+            <button id="btn-filtro-hist-prod" class="btn-secondary" style="padding: 8px 12px; font-size: 12px; flex: 1;" onclick="filtrarHistorico('PRODUTIVO')">👍 PRODUTIVO</button>
+            <button id="btn-filtro-hist-improd" class="btn-secondary" style="padding: 8px 12px; font-size: 12px; flex: 1;" onclick="filtrarHistorico('IMPRODUTIVO')">👎 IMPRODUTIVO</button>
+        </div>
+
+        <div class="historico-lista-scroll" id="historico-container-cards">
+            <!-- Cards de históricos gerados via JS -->
+        </div>
+    </div>
+</div>
+
+<!-- Modal auxiliar de Visualização Ampliada de Imagens de Evidência -->
+<div id="modal-imagem-expandida" class="modal-overlay" style="z-index: 10001;" onclick="fecharModal('modal-imagem-expandida')">
+    <div style="background: transparent; max-width: 90%; max-height: 90%; position: relative;" onclick="event.stopPropagation()">
+        <button style="position: absolute; top: -15px; right: -15px; background: #ef4444; color: white; border: none; font-weight: bold; width: 35px; height: 35px; border-radius: 50%; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center;" onclick="fecharModal('modal-imagem-expandida')">✕</button>
+        <img id="img-ampliada" src="" style="max-width: 100%; max-height: 80vh; border-radius: 8px; border: 2px solid #334155; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
     </div>
 </div>
 
 <script>
-let contratosProcessados = [];
+// --- VARIÁVEIS DE ESTADO DO BANCO DE DADOS ---
+let listaTecnicos = [];
+let listaAtendimentos = [];
 
-// --- LEITURA E PARSE DO CSV PELO NAVEGADOR ---
-document.getElementById('input-csv').addEventListener('change', function(e) {
-    const file = e.target.files[0];
-    if (!file) return;
+// Variáveis de filtros visuais
+let mainFiltroStatus = "TODOS";
+let tecnicoAtivoLogin = "";
+let filtroHistoricoAtivo = "TODOS";
 
-    Papa.parse(file, {
-        header: true,
-        skipEmptyLines: true,
-        complete: function(results) {
-            const dadosOriginal = results.data;
-            contratosProcessados = [];
+// --- INICIALIZADOR DE DADOS ---
+async function carregarDados() {
+    const tbody = document.getElementById('tabela-usuarios-corpo');
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #94a3b8; padding: 20px;">Atualizando informações no banco de dados do Azure...</td></tr>';
 
-            dadosOriginal.forEach(row => {
-                // Mapeia estritamente apenas as colunas úteis da planilha
-                const mapeado = {
-                    RowKey: row['RowKey'] ? row['RowKey'].trim() : '',
-                    PartitionKey: row['PartitionKey'] ? row['PartitionKey'].trim().toUpperCase() : '',
-                    tipo_retirada: row['tipo_retirada'] ? row['tipo_retirada'].trim().toUpperCase() : '',
-                    mes_safra: row['mes_safra'] ? row['mes_safra'].trim() : '',
-                    modelo_equipamento: row['modelo_equipamento'] ? row['modelo_equipamento'].trim().toUpperCase() : '',
-                    quantidade_equipamentos: row['quantidade_equipamentos'] ? parseInt(row['quantidade_equipamentos']) || 1 : 1,
-                    titular: row['Nome Titular (AP1)'] ? row['Nome Titular (AP1)'].trim().toUpperCase() : '',
-                    tel_residencial: row['tel_residencial'] ? row['tel_residencial'].trim() : '',
-                    tel_celular: row['tel_celular'] ? row['tel_celular'].trim() : '',
-                    endereco: row['endereco'] ? row['endereco'].trim().toUpperCase() : '',
-                    bairro: row['bairro'] ? row['bairro'].trim().toUpperCase() : '',
-                    complemento: row['complemento'] ? row['complemento'].trim().toUpperCase() : '',
-                    obs: row['obs'] ? row['obs'].trim().toUpperCase() : ''
-                };
-
-                if (mapeado.RowKey && mapeado.PartitionKey) {
-                    contratosProcessados.push(mapeado);
-                }
-            });
-
-            const infoCarga = document.getElementById('info-carga');
-            infoCarga.style.display = 'block';
-            infoCarga.textContent = `✔ Planilha lida com sucesso! ${contratosProcessados.length} contratos válidos identificados.`;
-
-            renderizarPreview();
-            document.getElementById('btn-enviar').disabled = false;
+    try {
+        // 1. Busca lista de técnicos cadastrados no Azure [2]
+        const responseTecnicos = await fetch('/api/gerenciarTecnicos');
+        if (responseTecnicos.ok) {
+            listaTecnicos = await responseTecnicos.json();
+        } else {
+            console.error("Falha ao obter técnicos.");
         }
+
+        // 2. Busca histórico geral para alimentar contadores dinâmicos [2]
+        await carregarHistoricoGeral();
+
+        // 3. Atualiza filtros e tabela
+        atualizarFiltroEmpresas();
+        renderizarTabela();
+
+    } catch (error) {
+        console.error("Erro ao carregar dados do backend:", error);
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #ef4444; padding: 20px;">Falha de comunicação com o servidor Azure. Verifique sua conexão.</td></tr>';
+    }
+}
+
+// --- BUSCA HISTÓRICO GERAL (SWA / AZURE FUNCTIONS) [2] ---
+async function carregarHistoricoGeral() {
+    const dataInicioVal = document.getElementById('filtro-data-inicio').value;
+    const dataFimVal = document.getElementById('filtro-data-fim').value;
+
+    let url = '/api/obterHistorico';
+    const params = [];
+    if (dataInicioVal) params.push(`dataInicio=${dataInicioVal}`);
+    if (dataFimVal) params.push(`dataFim=${dataFimVal}`);
+    
+    if (params.length > 0) {
+        url += `?${params.join('&')}`;
+    }
+
+    try {
+        const response = await fetch(url);
+        if (response.ok) {
+            listaAtendimentos = await response.json();
+        } else {
+            console.error("Falha ao sincronizar histórico.");
+        }
+    } catch (e) {
+        console.error("Erro ao carregar histórico:", e);
+    }
+}
+
+// --- GESTÃO DE MUDANÇA DE DATA ---
+async function handleFiltroDataAlterado() {
+    // Ao alterar o período, recarrega o histórico do banco de dados para recalculação de estatísticas [2]
+    await carregarHistoricoGeral();
+    renderizarTabela();
+}
+
+// --- CONTROLE DE EXIBIÇÃO DO FORMULÁRIO DE CADASTRO ---
+function toggleCadastro() {
+    const card = document.getElementById('card-cadastro');
+    const btn = document.getElementById('btn-toggle-cadastro');
+    if (card.style.display === "none") {
+        card.style.display = "block";
+        btn.textContent = "✕ FECHAR CADASTRO";
+        btn.className = "btn-danger";
+    } else {
+        card.style.display = "none";
+        btn.textContent = "➕ CADASTRAR NOVO TÉCNICO";
+        btn.className = "btn-primary";
+    }
+}
+
+// --- CONFIGURA O FILTRO DE RESULTADO NO PAINEL PRINCIPAL ---
+function setMainFiltroStatus(status) {
+    mainFiltroStatus = status;
+    atualizarBotoesFiltroMain();
+    renderizarTabela();
+}
+
+function atualizarBotoesFiltroMain() {
+    const btnTodos = document.getElementById('btn-main-todos');
+    const btnProd = document.getElementById('btn-main-prod');
+    const btnImprod = document.getElementById('btn-main-improd');
+
+    btnTodos.className = "btn-secondary";
+    btnProd.className = "btn-secondary";
+    btnImprod.className = "btn-secondary";
+
+    if (mainFiltroStatus === 'TODOS') btnTodos.className = "btn-primary";
+    else if (mainFiltroStatus === 'PRODUTIVO') btnProd.className = "btn-success";
+    else if (mainFiltroStatus === 'IMPRODUTIVO') btnImprod.className = "btn-danger";
+}
+
+// --- ATUALIZAÇÃO DINÂMICA DO FILTRO DE EMPRESAS ---
+function atualizarFiltroEmpresas() {
+    const selectEmpresa = document.getElementById('filtro-empresa');
+    const valorSelecionadoAtual = selectEmpresa.value || "TODAS";
+    
+    const empresasUnicas = [...new Set(listaTecnicos.map(t => t.empresa).filter(Boolean))];
+    
+    selectEmpresa.innerHTML = '<option value="TODAS">TODAS AS EMPRESAS</option>';
+    empresasUnicas.sort().forEach(empresa => {
+        const opt = document.createElement('option');
+        opt.value = empresa;
+        opt.textContent = empresa;
+        selectEmpresa.appendChild(opt);
     });
-});
 
-function renderizarPreview() {
-    const tbody = document.querySelector('#tabela-preview tbody');
+    if (empresasUnicas.includes(valorSelecionadoAtual)) {
+        selectEmpresa.value = valorSelecionadoAtual;
+    } else {
+        selectEmpresa.value = "TODAS";
+    }
+}
+
+// --- RENDERIZADOR DA TABELA COM FILTROS DE BUSCA E DATA DINÂMICA [2] ---
+function renderizarTabela() {
+    const tbody = document.getElementById('tabela-usuarios-corpo');
     tbody.innerHTML = "";
-    document.getElementById('preview-section').style.display = 'block';
 
-    const primeirasLinhas = contratosProcessados.slice(0, 5);
-    primeirasLinhas.forEach(item => {
+    const valorFiltroUsuario = document.getElementById('filtro-usuario').value.toLowerCase().trim();
+    const valorFiltroEmpresa = document.getElementById('filtro-empresa').value;
+
+    // Mapeia e calcula as estatísticas dinamicamente por técnico com base na lista carregada
+    const tecnicosProcessados = listaTecnicos.map(tecnico => {
+        const atendimentosDoTecnico = listaAtendimentos.filter(a => a.tecnicoLogin === tecnico.login);
+        const prodCount = atendimentosDoTecnico.filter(a => a.status === 'PRODUTIVO').length;
+        const improdCount = atendimentosDoTecnico.filter(a => a.status === 'IMPRODUTIVO').length;
+
+        return {
+            ...tecnico,
+            prodDinamico: prodCount,
+            improdDinamico: improdCount
+        };
+    });
+
+    // Aplica os filtros sobre os dados de técnicos carregados
+    const tecnicosFiltrados = tecnicosProcessados.filter(tecnico => {
+        const matchesUsuario = tecnico.nome.toLowerCase().includes(valorFiltroUsuario) || 
+                               tecnico.login.toLowerCase().includes(valorFiltroUsuario);
+        
+        const matchesEmpresa = (valorFiltroEmpresa === "TODAS") || 
+                               (tecnico.empresa === valorFiltroEmpresa);
+        
+        let matchesStatus = true;
+        if (mainFiltroStatus === "PRODUTIVO") {
+            matchesStatus = tecnico.prodDinamico > 0;
+        } else if (mainFiltroStatus === "IMPRODUTIVO") {
+            matchesStatus = tecnico.improdDinamico > 0;
+        }
+
+        return matchesUsuario && matchesEmpresa && matchesStatus;
+    });
+
+    if (tecnicosFiltrados.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #94a3b8; padding: 20px;">Nenhum técnico localizado com os filtros aplicados.</td></tr>';
+        return;
+    }
+
+    tecnicosFiltrados.forEach((tecnico) => {
+        // Localiza a referência na lista original
+        const indiceOriginal = listaTecnicos.findIndex(t => t.login === tecnico.login);
+        
         const tr = document.createElement('tr');
+        const statusBadge = tecnico.status === 'ATIVO' 
+            ? `<span class="badge badge-ativo">LIBERADO</span>` 
+            : `<span class="badge badge-bloqueado">BLOQUEADO</span>`;
+
         tr.innerHTML = `
-            <td>${item.RowKey}</td>
-            <td>${item.PartitionKey}</td>
-            <td>${item.titular || 'N/A'}</td>
-            <td>${item.endereco || 'N/A'}</td>
-            <td>${item.tipo_retirada || 'N/A'}</td>
+            <td>
+                <span style="color: #38bdf8; cursor: pointer; text-decoration: underline; font-weight: bold;" onclick="abrirHistoricoTecnico(${indiceOriginal})">
+                    ${tecnico.nome}
+                </span> [1]
+            </td>
+            <td style="color: #94a3b8;">${tecnico.login}</td>
+            <td>${tecnico.empresa}</td>
+            <td><span style="color: ${tecnico.cidade === 'TODAS' ? '#f59e0b' : 'white'}; font-weight: bold;">${tecnico.cidade}</span></td>
+            <td>${statusBadge}</td>
+            <td style="text-align: center;" class="contador text-produtivo">${tecnico.prodDinamico}</td>
+            <td style="text-align: center;" class="contador text-improdutivo">${tecnico.improdDinamico}</td>
+            <td style="text-align: center;">
+                <button class="btn-warning" onclick="abrirConfiguracao(${indiceOriginal})">Configurar ⚙️</button>
+            </td>
         `;
         tbody.appendChild(tr);
     });
 }
 
-// --- SUBMISSÃO EM LOTES ---
-document.getElementById('btn-enviar').addEventListener('click', async () => {
-    const senha = document.getElementById('input-senha').value.trim();
-    const modo = document.querySelector('input[name="modo-carga"]:checked').value;
-    const btnEnviar = document.getElementById('btn-enviar');
+// --- ADICIONAR NOVO TÉCNICO ---
+async function adicionarTecnico(event) {
+    event.preventDefault();
 
-    if (!senha) {
-        alert("Digite a senha de acesso gerencial.");
+    const btnSubmit = document.getElementById('btn-cadastrar-submit');
+    btnSubmit.disabled = true;
+    btnSubmit.textContent = "SALVANDO NO AZURE...";
+
+    const nome = document.getElementById('cad-nome').value.trim();
+    const login = document.getElementById('cad-login').value.trim();
+    const empresa = document.getElementById('cad-empresa').value.trim();
+    const cidade = document.getElementById('cad-cidade').value.trim();
+
+    const payload = {
+        nome: nome,
+        login: login,
+        empresa: empresa,
+        cidade: cidade,
+        status: "ATIVO"
+    };
+
+    try {
+        const response = await fetch('/api/gerenciarTecnicos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+            alert(`Acesso do técnico ${nome} registrado com sucesso no banco de dados!`);
+            document.getElementById('form-cadastro').reset();
+            toggleCadastro();
+            await carregarDados(); // Recarrega para persistir visualmente
+        } else {
+            const err = await response.json();
+            alert("Erro ao salvar técnico no Azure: " + (err.error || "Erro desconhecido"));
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Falha de rede ao conectar com o serviço.");
+    } finally {
+        btnSubmit.disabled = false;
+        btnSubmit.textContent = "CADASTRAR E AUTORIZAR USUÁRIO";
+    }
+}
+
+// --- MODAL DE HISTÓRICO INDIVIDUAL DO TÉCNICO [1] ---
+function abrirHistoricoTecnico(index) {
+    const tecnico = listaTecnicos[index];
+    tecnicoAtivoLogin = tecnico.login;
+    filtroHistoricoAtivo = "TODOS"; 
+
+    document.getElementById('historico-titulo-tecnico').textContent = `📋 Atendimentos de ${tecnico.nome}`;
+    
+    atualizarBotoesFiltroHistorico();
+    renderizarHistoricoCardList();
+
+    document.getElementById('modal-historico').style.display = 'flex';
+}
+
+// --- FILTRO DE HISTÓRICO INTERNO ---
+function filtrarHistorico(status) {
+    filtroHistoricoAtivo = status;
+    atualizarBotoesFiltroHistorico();
+    renderizarHistoricoCardList();
+}
+
+// --- ATUALIZA A CLASSE VISUAL DOS BOTÕES DO MODAL ---
+function atualizarBotoesFiltroHistorico() {
+    const btnTodos = document.getElementById('btn-filtro-hist-todos');
+    const btnProd = document.getElementById('btn-filtro-hist-prod');
+    const btnImprod = document.getElementById('btn-filtro-hist-improd');
+
+    btnTodos.className = "btn-secondary";
+    btnProd.className = "btn-secondary";
+    btnImprod.className = "btn-secondary";
+
+    if (filtroHistoricoAtivo === 'TODOS') btnTodos.className = "btn-primary";
+    else if (filtroHistoricoAtivo === 'PRODUTIVO') btnProd.className = "btn-success";
+    else if (filtroHistoricoAtivo === 'IMPRODUTIVO') btnImprod.className = "btn-danger";
+}
+
+// --- DESENHA A LISTA DE CARDS DE ACORDO COM FILTRO E DATA ATIVOS ---
+function renderizarHistoricoCardList() {
+    const containerCards = document.getElementById('historico-container-cards');
+    containerCards.innerHTML = "";
+
+    // Filtra atendimentos do técnico selecionado [1]
+    let atendimentosFiltrados = listaAtendimentos.filter(a => a.tecnicoLogin === tecnicoAtivoLogin);
+
+    // Se houver filtro secundário de status no modal, aplica
+    if (filtroHistoricoAtivo !== 'TODOS') {
+        atendimentosFiltrados = atendimentosFiltrados.filter(a => a.status === filtroHistoricoAtivo);
+    }
+
+    if (atendimentosFiltrados.length === 0) {
+        containerCards.innerHTML = `<div style="text-align: center; color: #94a3b8; padding: 25px; font-size: 13px;">Nenhum atendimento <strong>${filtroHistoricoAtivo === 'TODOS' ? '' : filtroHistoricoAtivo.toLowerCase()}</strong> localizado para este período de busca.</div>`;
         return;
     }
 
-    if (contratosProcessados.length === 0) {
-        alert("Por favor, carregue um arquivo CSV válido primeiro.");
-        return;
+    atendimentosFiltrados.forEach(atend => {
+        const card = document.createElement('div');
+        card.className = "historico-card";
+
+        const tagStatusColor = atend.status === 'PRODUTIVO' ? '#4ade80' : '#f87171';
+        const dataObjeto = new Date(atend.data);
+        const dataFormatada = dataObjeto.toLocaleString('pt-BR');
+
+        let campoEquipamentoHTML = "";
+        if (atend.status === "PRODUTIVO") {
+            campoEquipamentoHTML = `<div><strong>Equipamento Retirado (MAC):</strong> <span class="mac-texto">${atend.mac}</span></div>`;
+        } else {
+            campoEquipamentoHTML = `<div><span style="color: #94a3b8; font-style: italic;">Nenhum equipamento foi recolhido nesta visita.</span></div>`;
+        }
+
+        let fotosHTML = "";
+        if (atend.fotos && atend.fotos.length > 0) {
+            atend.fotos.forEach(fotoSrc => {
+                fotosHTML += `<img src="${fotoSrc}" class="foto-atendimento" onclick="ampliarImagem('${fotoSrc}')" title="Clique para ampliar">`;
+            });
+        } else {
+            fotosHTML = `<span style="font-size: 12px; color: #64748b; font-style: italic;">Sem evidências fotográficas anexadas.</span>`;
+        }
+
+        card.innerHTML = `
+            <!-- Coluna da Esquerda (Dados textuais) [2] -->
+            <div class="historico-info">
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #334155; padding-bottom: 3px; margin-bottom: 8px;">
+                    <span style="font-weight: bold; color: #38bdf8;">Contrato: ${atend.contrato}</span>
+                    <span style="color: ${tagStatusColor}; font-weight: bold; font-size: 11px;">${atend.status}</span>
+                </div>
+                <strong>Cidade:</strong> ${atend.cidade}<br>
+                <strong>Data/Hora:</strong> ${dataFormatada}<br>
+                <strong>Tipo Desconexão:</strong> ${atend.tipoDesconexao}<br>
+                <div style="margin-top: 8px;">
+                    ${campoEquipamentoHTML}
+                </div>
+            </div>
+
+            <!-- Coluna da Direita (Galeria de evidências) [2] -->
+            <div class="evidencias-coluna">
+                <span style="font-size: 11px; font-weight: bold; color: #94a3b8; display: block; border-bottom: 1px dashed #334155; padding-bottom: 3px; margin-bottom: 5px;">🖼️ Evidências Anexas</span>
+                <div class="evidencias-grid">
+                    ${fotosHTML}
+                </div>
+            </div>
+        `;
+        containerCards.appendChild(card);
+    });
+}
+
+// --- DETALHADOR DE EXPANSÃO DE IMAGENS ---
+function ampliarImagem(src) {
+    document.getElementById('img-ampliada').src = src;
+    document.getElementById('modal-imagem-expandida').style.display = 'flex';
+}
+
+// --- CONFIGURAÇÃO (MODAL DE USUÁRIO) ---
+function abrirConfiguracao(index) {
+    const tecnico = listaTecnicos[index];
+    
+    document.getElementById('edit-login-hidden').value = tecnico.login;
+    document.getElementById('edit-nome').value = tecnico.nome;
+    document.getElementById('edit-empresa').value = tecnico.empresa;
+    document.getElementById('edit-cidade').value = tecnico.cidade;
+    document.getElementById('edit-status').value = tecnico.status;
+
+    document.getElementById('modal-subtitulo').innerHTML = `Modificando permissões para o login único: <strong>${tecnico.login}</strong>`;
+    
+    document.getElementById('modal-configuracao').style.display = 'flex';
+}
+
+function fecharModal(idModal) {
+    document.getElementById(idModal).style.display = 'none';
+}
+
+// --- SALVAR EDIÇÕES DE TÉCNICO ---
+async function salvarAlteracoes() {
+    const btnSalvar = document.getElementById('btn-salvar-modal');
+    btnSalvar.disabled = true;
+    btnSalvar.textContent = "SALVANDO...";
+
+    const login = document.getElementById('edit-login-hidden').value;
+    const nome = document.getElementById('edit-nome').value.trim();
+    const empresa = document.getElementById('edit-empresa').value.trim();
+    const cidade = document.getElementById('edit-cidade').value.trim();
+    const status = document.getElementById('edit-status').value;
+
+    const payload = { login, nome, empresa, cidade, status };
+
+    try {
+        const response = await fetch('/api/gerenciarTecnicos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+            alert("Alterações atualizadas com sucesso no Azure!");
+            fecharModal('modal-configuracao');
+            await carregarDados();
+        } else {
+            const err = await response.json();
+            alert("Erro ao atualizar dados: " + (err.error || "Erro desconhecido"));
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Erro de rede ao salvar alterações.");
+    } finally {
+        btnSalvar.disabled = false;
+        btnSalvar.textContent = "SALVAR ALTERAÇÕES";
     }
+}
 
-    if (modo === 'substituir') {
-        const confirma = confirm("⚠️ ATENÇÃO: Esta ação apagará TODOS os contratos atuais da base do Azure para gravar a nova lista. Deseja prosseguir?");
-        if (!confirma) return;
-    }
+// --- REMOVER TÉCNICO PERMANENTEMENTE ---
+async function confirmarExclusao() {
+    const login = document.getElementById('edit-login-hidden').value;
+    const nome = document.getElementById('edit-nome').value;
 
-    btnEnviar.disabled = true;
-
-    const tamanhoLote = 100;
-    const totalContratos = contratosProcessados.length;
-    let enviados = 0;
-    let acaoAtual = modo; 
-
-    for (let i = 0; i < totalContratos; i += tamanhoLote) {
-        const lote = contratosProcessados.slice(i, i + tamanhoLote);
-        
-        const progresso = Math.round((enviados / totalContratos) * 100);
-        btnEnviar.textContent = `ENVIANDO: ${enviados} de ${totalContratos} (${progresso}%)...`;
-
-        const payload = {
-            senha: senha,
-            acao: acaoAtual,
-            contratos: lote
-        };
+    const confirmacao = confirm(`Deseja realmente remover o acesso e apagar permanentemente o técnico ${nome} (${login})?`);
+    if (confirmacao) {
+        const btnExcluir = document.getElementById('btn-excluir-modal');
+        btnExcluir.disabled = true;
+        btnExcluir.textContent = "EXCLUINDO...";
 
         try {
-            const response = await fetch('/api/importarContratos', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+            const response = await fetch(`/api/gerenciarTecnicos?login=${login}`, {
+                method: 'DELETE'
             });
 
-            if (!response.ok) {
-                let mensagemErroServidor = "";
-                try {
-                    const textoPuro = await response.text();
-                    try {
-                        const jsonErro = JSON.parse(textoPuro);
-                        mensagemErroServidor = jsonErro.error || textoPuro;
-                    } catch (e) {
-                        mensagemErroServidor = textoPuro || `Código de status: ${response.status}`;
-                    }
-                } catch (e) {
-                    mensagemErroServidor = `Falha de rede com status ${response.status}`;
-                }
-                throw new Error(mensagemErroServidor);
+            if (response.ok) {
+                alert("Acesso removido com sucesso no banco de dados.");
+                fecharModal('modal-configuracao');
+                await carregarDados();
+            } else {
+                const err = await response.json();
+                alert("Erro ao remover registro: " + (err.error || "Erro desconhecido"));
             }
-
-            enviados += lote.length;
-            acaoAtual = 'adicionar';
-
-        } catch (err) {
-            console.error(err);
-            alert(`Falha no envio do lote a partir da linha ${enviados}.\n\nDetalhes do Erro: ${err.message}`);
-            btnEnviar.disabled = false;
-            btnEnviar.textContent = "PROCESSAR E ENVIAR AO AZURE";
-            return;
+        } catch (e) {
+            console.error(e);
+            alert("Erro de rede ao excluir registro.");
+        } finally {
+            btnExcluir.disabled = false;
+            btnExcluir.textContent = "EXCLUIR USUÁRIO";
         }
     }
+}
 
-    btnEnviar.disabled = false;
-    btnEnviar.textContent = "PROCESSAR E ENVIAR AO AZURE";
-    alert(`Sucesso! Todos os ${totalContratos} contratos foram carregados com êxito na nuvem.`);
-    
-    document.getElementById('input-csv').value = "";
-    document.getElementById('input-senha').value = "";
-    document.getElementById('info-carga').style.display = 'none';
-    document.getElementById('preview-section').style.display = 'none';
-    contratosProcessados = [];
-});
+// Inicializa a tabela e os seletores ao carregar a página
+window.onload = () => {
+    carregarDados();
+};
 </script>
 </body>
 </html>
