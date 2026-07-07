@@ -1,12 +1,28 @@
-// --- 2. GERENCIAR TÉCNICOS (Cadastro e controle administrativo) ---
-// =========================================================================
+const { app } = require('@azure/functions');
+const { TableClient } = require('@azure/data-tables');
+
 app.http('gerenciarTecnicos', {
     methods: ['GET', 'POST', 'DELETE'],
     authLevel: 'anonymous',
     handler: async (request, context) => {
         try {
             const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING || process.env.AzureWebJobsStorage;
+            
+            if (!connectionString) {
+                return { 
+                    status: 500, 
+                    jsonBody: { error: "A variável de conexão 'AZURE_STORAGE_CONNECTION_STRING' não está definida no painel de configurações (Configuration) do Azure." } 
+                };
+            }
+
             const tableClient = TableClient.fromConnectionString(connectionString, 'TecnicosAutorizados');
+            
+            // Força a auto-criação da tabela se ela não existir
+            try {
+                await tableClient.createTable();
+            } catch (tableErr) {
+                // Silencia se for conflito de tabela já existente (409)
+            }
 
             // --- CASO GET: Listar todos os técnicos cadastrados ---
             if (request.method === 'GET') {
@@ -18,7 +34,7 @@ app.http('gerenciarTecnicos', {
                 for await (const entity of entities) {
                     lista.push({
                         nome: entity.Nome || 'N/D',
-                        login: entity.rowKey, // rowKey em minúsculo mapeado do SDK
+                        login: entity.rowKey, 
                         empresa: entity.Empresa || 'N/D',
                         cidade: entity.CidadeAtuacao || 'TODAS',
                         status: entity.Status || 'ATIVO'
@@ -32,7 +48,7 @@ app.http('gerenciarTecnicos', {
                 const data = await request.json();
                 
                 if (!data.login || !data.nome || !data.empresa || !data.cidade) {
-                    return { status: 400, jsonBody: { error: "Dados incompletos para cadastro." } };
+                    return { status: 400, jsonBody: { error: "Dados incompletos para cadastro do técnico." } };
                 }
 
                 const loginLower = data.login.trim().toLowerCase();
