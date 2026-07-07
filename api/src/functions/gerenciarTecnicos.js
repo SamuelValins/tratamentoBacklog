@@ -1,6 +1,5 @@
-const { app } = require('@azure/functions');
-const { TableClient } = require('@azure/data-tables');
-
+// --- 2. GERENCIAR TÉCNICOS (Cadastro e controle administrativo) ---
+// =========================================================================
 app.http('gerenciarTecnicos', {
     methods: ['GET', 'POST', 'DELETE'],
     authLevel: 'anonymous',
@@ -19,7 +18,7 @@ app.http('gerenciarTecnicos', {
                 for await (const entity of entities) {
                     lista.push({
                         nome: entity.Nome || 'N/D',
-                        login: entity.rowKey, // Corrigido para "rowKey" minúsculo (Padrão SDK Azure)
+                        login: entity.rowKey, // rowKey em minúsculo mapeado do SDK
                         empresa: entity.Empresa || 'N/D',
                         cidade: entity.CidadeAtuacao || 'TODAS',
                         status: entity.Status || 'ATIVO'
@@ -39,8 +38,8 @@ app.http('gerenciarTecnicos', {
                 const loginLower = data.login.trim().toLowerCase();
 
                 const entidadeTecnico = {
-                    partitionKey: 'TECNICOS', // partitionKey minúsculo
-                    rowKey: loginLower,       // rowKey minúsculo
+                    partitionKey: 'TECNICOS', 
+                    rowKey: loginLower,       
                     Nome: data.nome.trim().toUpperCase(),
                     Empresa: data.empresa.trim().toUpperCase(),
                     CidadeAtuacao: data.cidade.trim().toUpperCase(),
