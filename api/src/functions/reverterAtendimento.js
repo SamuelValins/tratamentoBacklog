@@ -1,5 +1,6 @@
-// --- 3. REVERTER ATENDIMENTO ---
-// =========================================================================
+const { app } = require('@azure/functions');
+const { TableClient } = require('@azure/data-tables');
+
 app.http('reverterAtendimento', {
     methods: ['POST'],
     authLevel: 'anonymous',
@@ -12,8 +13,20 @@ app.http('reverterAtendimento', {
             }
 
             const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING || process.env.AzureWebJobsStorage;
+            
+            if (!connectionString) {
+                return { 
+                    status: 500, 
+                    jsonBody: { error: "A variável de conexão 'AZURE_STORAGE_CONNECTION_STRING' não está definida no painel de configurações (Configuration) do Azure." } 
+                };
+            }
+
             const historyTable = TableClient.fromConnectionString(connectionString, 'HistoricoAtendimentos');
             const contractsTable = TableClient.fromConnectionString(connectionString, 'ContratosRetirada');
+
+            // Garante que as tabelas existem
+            try { await historyTable.createTable(); } catch (e) {}
+            try { await contractsTable.createTable(); } catch (e) {}
 
             const loginLower = tecnico.trim().toLowerCase();
 
@@ -22,7 +35,6 @@ app.http('reverterAtendimento', {
             let tipo = "DESCONEXÃO";
             try {
                 const entity = await historyTable.getEntity(loginLower, contrato);
-                // Prevenção para mapear propriedades tanto com iniciais maiúsculas quanto minúsculas
                 cidade = entity.Cidade || entity.cidade || "BAURU";
                 tipo = entity.TipoDesconexao || entity.tipoDesconexao || "DESCONEXÃO";
                 
