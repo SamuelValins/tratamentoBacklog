@@ -142,7 +142,7 @@ tr:hover {
     box-sizing: border-box;
 }
 
-/* Lista de Atendimentos em Duas Colunas [2] */
+/* Lista de Atendimentos */
 .historico-lista-scroll {
     max-height: 380px;
     overflow-y: auto;
@@ -156,7 +156,7 @@ tr:hover {
     padding: 15px;
     margin-bottom: 15px;
     display: grid;
-    grid-template-columns: 1.2fr 1fr; /* Lado esquerdo dados, lado direito imagens [2] */
+    grid-template-columns: 1.2fr 1fr; 
     gap: 15px;
     align-items: start;
 }
@@ -234,7 +234,7 @@ tr:hover {
                 </div>
                 <div>
                     <label>Login de Acesso</label>
-                    <input type="text" id="cad-login" placeholder="EX: SILVA.CARLOS" required oninput="this.value = this.value.toLowerCase().trim()">
+                    <input type="text" id="cad-login" placeholder="EX: f198483" required oninput="this.value = this.value.toLowerCase().trim()">
                 </div>
             </div>
             
@@ -397,7 +397,15 @@ async function carregarDados() {
     try {
         const responseTecnicos = await fetch('/api/gerenciarTecnicos');
         if (responseTecnicos.ok) {
-            listaTecnicos = await responseTecnicos.json();
+            const rawData = await responseTecnicos.json();
+            // Normaliza o array de forma resiliente
+            listaTecnicos = rawData.map(t => ({
+                nome: t.nome || t.Nome || 'N/D',
+                login: t.login || t.rowKey || t.RowKey || '',
+                empresa: t.empresa || t.Empresa || 'N/D',
+                cidade: t.cidade || t.CidadeAtuacao || 'TODAS',
+                status: t.status || t.Status || 'ATIVO'
+            }));
         }
 
         await carregarHistoricoGeral();
@@ -407,7 +415,7 @@ async function carregarDados() {
 
     } catch (error) {
         console.error(error);
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #ef4444; padding: 20px;">Falha de comunicação com o servidor Azure.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #ef4444; padding: 20px;">Falha de conexão com o servidor Azure.</td></tr>';
     }
 }
 
@@ -475,12 +483,12 @@ function atualizarFiltroEmpresas() {
     const selectEmpresa = document.getElementById('filtro-empresa');
     const valorSelecionadoAtual = selectEmpresa.value || "TODAS";
     
-    // Captura com resiliência de campos nulos
-    const empresasUnicas = [...new Set(listaTecnicos.map(t => t.empresa || t.Empresa).filter(Boolean))];
+    const empresasUnicas = [...new Set(listaTecnicos.map(t => t.empresa).filter(Boolean))];
     
     selectEmpresa.innerHTML = '<option value="TODAS">TODAS AS EMPRESAS</option>';
     empresasUnicas.sort().forEach(empresa => {
         const opt = document.createElement('option');
+        opt.value = Math.random().toString(); // Evita ID colisão
         opt.value = empresa;
         opt.textContent = empresa;
         selectEmpresa.appendChild(opt);
@@ -493,7 +501,7 @@ function atualizarFiltroEmpresas() {
     }
 }
 
-// --- RENDERIZADOR DA TABELA (AJUSTADO PARA ELIMINAR DESALINHAMENTO E UNDEFINED) ---
+// --- RENDERIZADOR DA TABELA (CONECTADO E ROBUSTO) ---
 function renderizarTabela() {
     const tbody = document.getElementById('tabela-usuarios-corpo');
     tbody.innerHTML = "";
@@ -502,18 +510,18 @@ function renderizarTabela() {
     const valorFiltroEmpresa = document.getElementById('filtro-empresa').value;
 
     const tecnicosProcessados = listaTecnicos.map(tecnico => {
-        const loginLower = (tecnico.login || tecnico.RowKey || '').toLowerCase();
+        const loginLower = (tecnico.login || '').toLowerCase();
         const atendimentosDoTecnico = listaAtendimentos.filter(a => (a.tecnicoLogin || '').toLowerCase() === loginLower);
         
         const prodCount = atendimentosDoTecnico.filter(a => a.status === 'PRODUTIVO').length;
         const improdCount = atendimentosDoTecnico.filter(a => a.status === 'IMPRODUTIVO').length;
 
         return {
-            nome: tecnico.nome || tecnico.Nome || 'N/D',
-            login: tecnico.login || tecnico.RowKey || '',
-            empresa: tecnico.empresa || tecnico.Empresa || 'N/D',
-            cidade: tecnico.cidade || tecnico.CidadeAtuacao || 'TODAS',
-            status: tecnico.status || tecnico.Status || 'ATIVO',
+            nome: tecnico.nome || 'N/D',
+            login: tecnico.login || '',
+            empresa: tecnico.empresa || 'N/D',
+            cidade: tecnico.cidade || 'TODAS',
+            status: tecnico.status || 'ATIVO',
             prodDinamico: prodCount,
             improdDinamico: improdCount
         };
@@ -549,12 +557,12 @@ function renderizarTabela() {
 
         tr.innerHTML = `
             <td>
-                <!-- Correção crítica: Abre o técnico utilizando a sua string de LOGIN única em vez de índice -->
+                <!-- Correção Crítica: Chama abrindo exatamente pelo LOGIN (string única) e nunca por índice numérico -->
                 <span style="color: #38bdf8; cursor: pointer; text-decoration: underline; font-weight: bold;" onclick="abrirHistoricoTecnico('${tecnico.login}')">
                     ${tecnico.nome}
                 </span> [1]
             </td>
-            <td style="color: #94a3b8;">${tecnico.login}</td>
+            <td style="color: #cbd5e1; font-weight: bold;">${tecnico.login}</td>
             <td>${tecnico.empresa}</td>
             <td><span style="color: ${tecnico.cidade === 'TODAS' ? '#f59e0b' : 'white'}; font-weight: bold;">${tecnico.cidade}</span></td>
             <td>${statusBadge}</td>
@@ -577,7 +585,7 @@ async function adicionarTecnico(event) {
     btnSubmit.textContent = "SALVANDO NO AZURE...";
 
     const nome = document.getElementById('cad-nome').value.trim();
-    const login = document.getElementById('cad-login').value.trim();
+    const login = document.getElementById('cad-login').value.trim().toLowerCase(); // Salva estritamente em minúsculas
     const empresa = document.getElementById('cad-empresa').value.trim();
     const cidade = document.getElementById('cad-cidade').value.trim();
 
@@ -600,25 +608,25 @@ async function adicionarTecnico(event) {
             alert("Erro: " + (err.error || "Erro desconhecido"));
         }
     } catch (e) {
-        alert("Falha de rede.");
+        alert("Falha de rede ao conectar com o Azure.");
     } finally {
         btnSubmit.disabled = false;
         btnSubmit.textContent = "CADASTRAR E AUTORIZAR USUÁRIO";
     }
 }
 
-// --- ABRIR CONFIGURAÇÕES DO TÉCNICO (BUSCA RESILIENTE POR LOGIN) ---
+// --- CONFIGURAÇÃO (BUSCA RESILIENTE POR LOGIN) ---
 function abrirConfiguracao(login) {
-    const tecnico = listaTecnicos.find(t => (t.login || t.RowKey || '').toLowerCase() === login.toLowerCase());
+    const tecnico = listaTecnicos.find(t => (t.login || '').toLowerCase() === login.toLowerCase());
     if (!tecnico) return;
 
-    document.getElementById('edit-login-hidden').value = tecnico.login || tecnico.RowKey;
-    document.getElementById('edit-nome').value = tecnico.nome || tecnico.Nome;
-    document.getElementById('edit-empresa').value = tecnico.empresa || tecnico.Empresa;
-    document.getElementById('edit-cidade').value = tecnico.cidade || tecnico.CidadeAtuacao;
-    document.getElementById('edit-status').value = tecnico.status || tecnico.Status;
+    document.getElementById('edit-login-hidden').value = tecnico.login;
+    document.getElementById('edit-nome').value = tecnico.nome;
+    document.getElementById('edit-empresa').value = tecnico.empresa;
+    document.getElementById('edit-cidade').value = tecnico.cidade;
+    document.getElementById('edit-status').value = tecnico.status;
 
-    document.getElementById('modal-subtitulo').innerHTML = `Modificando permissões para o login: <strong>${tecnico.login || tecnico.RowKey}</strong>`;
+    document.getElementById('modal-subtitulo').innerHTML = `Modificando permissões para o login: <strong>${tecnico.login}</strong>`;
     document.getElementById('modal-configuracao').style.display = 'flex';
 }
 
@@ -660,34 +668,41 @@ async function salvarAlteracoes() {
     }
 }
 
-// --- REMOVER TÉCNICO ---
+// --- REMOVER TÉCNICO (CORRIGIDO) ---
 async function confirmarExclusao() {
     const login = document.getElementById('edit-login-hidden').value;
     const nome = document.getElementById('edit-nome').value;
 
     if (confirm(`Deseja revogar permanentemente o acesso de ${nome}?`)) {
+        const btnExcluir = document.getElementById('btn-excluir-modal');
+        btnExcluir.disabled = true;
+
         try {
             const response = await fetch(`/api/gerenciarTecnicos?login=${login}`, { method: 'DELETE' });
             if (response.ok) {
                 alert("Acesso revogado.");
                 fecharModal('modal-configuracao');
                 await carregarDados();
+            } else {
+                alert("Erro ao remover usuário do Azure.");
             }
         } catch (e) {
             alert("Erro de conexão.");
+        } finally {
+            btnExcluir.disabled = false;
         }
     }
 }
 
-// --- EXIBIR HISTÓRICO INDIVIDUAL (CHAVE BASEADA NO LOGIN) ---
+// --- HISTÓRICO INDIVIDUAL (CHAVE BASEADA NO LOGIN) ---
 function abrirHistoricoTecnico(login) {
-    const tecnico = listaTecnicos.find(t => (t.login || t.RowKey || '').toLowerCase() === login.toLowerCase());
+    const tecnico = listaTecnicos.find(t => (t.login || '').toLowerCase() === login.toLowerCase());
     if (!tecnico) return;
 
     tecnicoAtivoLogin = login;
     filtroHistoricoAtivo = "TODOS"; 
 
-    document.getElementById('historico-titulo-tecnico').textContent = `📋 Atendimentos de ${tecnico.nome || tecnico.Nome}`;
+    document.getElementById('historico-titulo-tecnico').textContent = `📋 Atendimentos de ${tecnico.nome}`;
     
     atualizarBotoesFiltroHistorico();
     renderizarHistoricoCardList();
@@ -715,7 +730,6 @@ function atualizarBotoesFiltroHistorico() {
     else if (filtroHistoricoAtivo === 'IMPRODUTIVO') btnImprod.className = "btn-danger";
 }
 
-// --- RENDERIZA O HISTÓRICO COM SISTEMA DE REVERSÃO INTEGRADO [2] ---
 function renderizarHistoricoCardList() {
     const containerCards = document.getElementById('historico-container-cards');
     containerCards.innerHTML = "";
@@ -757,10 +771,8 @@ function renderizarHistoricoCardList() {
         if (atend.status === "PRODUTIVO") {
             campoEquipamentoHTML = `<div><strong>Equipamento Retirado (MAC):</strong> <span class="mac-texto">${atend.mac || 'N/D'}</span></div>`;
         } else {
-            // Regra Improdutivo: Equipamento vazio e sem Modelo + adiciona botão de reverter
             campoEquipamentoHTML = `<div><span style="color: #94a3b8; font-style: italic;">Nenhum equipamento foi recolhido nesta visita.</span></div>`;
             
-            // Botão de Reversão para administradores
             btnReverterHTML = `
                 <button type="button" class="btn-warning" style="margin-top:10px; font-size:11px; padding:6px 12px; width:100%; text-align:center;" onclick="reverterBaixaGerencial('${atend.contrato}', '${atend.tecnicoLogin}')">
                     🔄 REVERTER BAIXA PARA ATIVA
@@ -784,7 +796,7 @@ function renderizarHistoricoCardList() {
             <!-- Coluna da Esquerda (Dados textuais) [2] -->
             <div class="historico-info">
                 <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #334155; padding-bottom: 3px; margin-bottom: 8px;">
-                    <span style="font-weight: bold; color: #38bdf8;">Contrato: ${atend.contrato || atend.RowKey || 'N/D'}</span>
+                    <span style="font-weight: bold; color: #38bdf8;">Contrato: ${atend.contrato || 'N/D'}</span>
                     <span style="color: ${tagStatusColor}; font-weight: bold; font-size: 11px;">${atend.status}</span>
                 </div>
                 <strong>Cidade:</strong> ${atend.cidade || 'N/D'}<br>
@@ -824,7 +836,6 @@ async function reverterBaixaGerencial(contrato, tecnico) {
         if (response.ok) {
             alert("Visita revertida com sucesso no banco de dados!");
             await carregarDados(); // Recarrega os contadores
-            // Mantém o histórico aberto, apenas atualiza os cartões filtrados
             renderizarHistoricoCardList();
         } else {
             alert("Erro ao processar reversão.");
