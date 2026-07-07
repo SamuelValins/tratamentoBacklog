@@ -78,7 +78,6 @@ button {
     padding: 14px 20px;
     border: none;
     border-radius: 8px;
-    width: 100%;
     font-weight: bold;
     cursor: pointer;
     font-size: 16px;
@@ -154,6 +153,7 @@ button {
 .info-linha strong { color: #94a3b8; }
 .tel-link { color: #38bdf8; text-decoration: none; margin-right: 10px; font-weight: bold; }
 
+/* Formulário de conclusão */
 .conclusao-box {
     display: none;
     margin-top: 15px;
@@ -161,33 +161,33 @@ button {
     padding-top: 15px;
 }
 
-/* Container de fotos em coluna para comportar a seleção embaixo */
+/* Grids de Imagem */
 .grid-fotos-equipamento {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 15px;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
     margin-bottom: 10px;
 }
 .foto-equip-container {
-    position: relative;
     background: #0f172a;
     border: 1px solid #334155;
     border-radius: 8px;
     padding: 8px;
+    position: relative;
     box-sizing: border-box;
 }
 .foto-thumbnail {
     width: 100%;
-    aspect-ratio: 1.2;
+    aspect-ratio: 1;
     object-fit: cover;
     border-radius: 6px;
-    border: 1px solid #475569;
+    border: 1px solid #334155;
 }
 </style>
 </head>
 <body>
 
-<!-- Login Overlay -->
+<!-- Tela de Bloqueio/Login Integrada ao Azure [2] -->
 <div id="login-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0f172a; z-index: 20000; display: flex; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box;">
     <div class="card" style="width: 100%; max-width: 400px; padding: 30px; text-align: center; border: 1px solid #334155;">
         <h2 style="color: #38bdf8; margin-top: 0;">🚗 Claro Retirada</h2>
@@ -280,7 +280,7 @@ button {
     <div style="background: #1e293b; max-width: 500px; margin: 20px auto; padding: 20px; border-radius: 10px; border: 1px solid #334155; position: relative;">
         <button id="btn-fechar-historico" style="position: absolute; top: 10px; right: 10px; width: 30px; height: 30px; border-radius: 50%; background: #ef4444; border: none; font-weight: bold; font-size: 16px; cursor: pointer; color: white; display: flex; align-items: center; justify-content: center; padding:0;">✕</button>
         <h3 style="margin-top: 0; color: #38bdf8;">📋 Histórico Local de Atendimentos</h3>
-        <p style="font-size: 12px; color: #94a3b8; margin-bottom: 15px;">Listagem local de registros enviados por este dispositivo.</p>
+        <p style="font-size: 12px; color: #94a3b8; margin-bottom: 15px;">Abaixo você pode ver suas baixas. Use a engrenagem para **editar / reverter** visitas diretamente daqui [2].</p>
         <div id="historico-lista-container" style="display: flex; flex-direction: column; gap: 10px;"></div>
     </div>
 </div>
@@ -288,11 +288,16 @@ button {
 <script>
 let localizacaoTecnico = null;
 
-// Estruturas de fotos modificadas para suportar MÚLTIPLOS EQUIPAMENTOS COM SELEÇÃO INDIVIDUAL
+// Estruturas de fotos para o preenchimento principal
 let fotosEquipamentos = {}; // { "contratoId": [ { src: base64, equipamento: "" } ] }
 let fotoFachada = {};       
 let statusAtendimento = {}; 
-let contratosMapeadosBrutos = []; // Guarda informações dos contratos para mapeamento de fotos
+let contratosMapeadosBrutos = []; 
+
+// Estruturas de fotos reservadas para EDICÃO DENTRO DO HISTÓRICO LOCAL [2]
+let fotosEquipamentosEdicao = {}; // { "contratoId": [ { src: base64, equipamento: "" } ] }
+let fotoFachadaEdicao = {};       
+let statusAtendimentoEdicao = {}; 
 
 let queryAnterior = "";
 let todosContratosOrdenados = [];
@@ -605,62 +610,6 @@ function ordenarFilaNearestNeighbor(contratos, startLat, startLon, limiteQtd) {
     return resultadoOrdenado;
 }
 
-// --- REGRA INTERATIVA DE SELEÇÃO NO FILTRO SAFRA MULTIPLE ---
-document.getElementById('select-safra').addEventListener('change', function() {
-    const selectedValues = Array.from(this.selectedOptions).map(opt => opt.value);
-    if (selectedValues.includes('TODOS') && selectedValues.length > 1) {
-        if (selectedValues[selectedValues.length - 1] === 'TODOS') {
-            Array.from(this.options).forEach(opt => {
-                opt.selected = (opt.value === 'TODOS');
-            });
-        } else {
-            Array.from(this.options).forEach(opt => {
-                if (opt.value === 'TODOS') opt.selected = false;
-            });
-        }
-    }
-});
-
-// --- PROCESSADOR FINAL E ROTEIRIZAÇÃO DE CONTRATOS ---
-async function prosseguirProcessamentoContratos(contratosParaProcessar, limit) {
-    const btnCarregar = document.getElementById('btn-carregar');
-    btnCarregar.disabled = true;
-
-    todosContratosOrdenados = [];
-    indexExibicaoAtual = 0;
-
-    if (contratosParaProcessar.length > 0) {
-        if (localizacaoTecnico) {
-            await geocodificarFila(contratosParaProcessar);
-            todosContratosOrdenados = ordenarFilaNearestNeighbor(contratosParaProcessar, localizacaoTecnico.latitude, localizacaoTecnico.longitude, limit);
-        } else {
-            todosContratosOrdenados = ordenarFilaNearestNeighbor(contratosParaProcessar, null, null, limit);
-        }
-    }
-
-    const blocoExibicao = todosContratosOrdenados.slice(indexExibicaoAtual, indexExibicaoAtual + limiteExibicao);
-
-    if (blocoExibicao.length === 0) {
-        alert("Fim da fila! Não há contratos pendentes para os critérios selecionados.");
-        btnCarregar.disabled = false;
-        btnCarregar.textContent = "CARREGAR FILA E ORDENAR POR PROXIMIDADE";
-        return;
-    }
-
-    renderizarContratos(blocoExibicao);
-    indexExibicaoAtual += limiteExibicao;
-
-    if (indexExibicaoAtual < todosContratosOrdenados.length) {
-        const restantes = todosContratosOrdenados.length - indexExibicaoAtual;
-        btnCarregar.textContent = `CARREGAR PRÓXIMOS ${Math.min(limiteExibicao, restantes)} CONTRATOS 🧭`;
-    } else {
-        btnCarregar.textContent = "FIM DA FILA! RECARREGAR DO INÍCIO 🔄";
-        indexExibicaoAtual = 0; 
-    }
-
-    btnCarregar.disabled = false;
-}
-
 // --- CONTROLE DE CARREGAMENTO E PAGINAÇÃO ---
 document.getElementById('btn-carregar').addEventListener('click', async () => {
     const login = localStorage.getItem('login_tecnico');
@@ -741,7 +690,7 @@ document.getElementById('btn-carregar').addEventListener('click', async () => {
     }
 
     contratosCarregadosTemporarios = contratosFiltrados;
-    contratosMapeadosBrutos = contratosFiltrados; // Guarda para extrair os modelos de equipamentos depois
+    contratosMapeadosBrutos = contratosFiltrados; 
 
     if (modo === 'BAIRRO') {
         btnCarregar.textContent = "IDENTIFICANDO SEU BAIRRO ATUAL...";
@@ -848,7 +797,6 @@ function renderizarContratos(contratos) {
     }
 
     contratos.forEach((item) => {
-        // Inicializa estrutura de fotos para o contrato como array de objetos { src, equipamento }
         fotosEquipamentos[item.contrato] = [];
         fotoFachada[item.contrato] = null;
         statusAtendimento[item.contrato] = null;
@@ -874,22 +822,22 @@ function renderizarContratos(contratos) {
             : "";
 
         const limparNumero = (num) => String(num).replace(/\D/g, '');
-        const mensagemPronta = gerarMensagemWhatsapp(item.endereco, item.complemento, item.bairro, item.cidade, item.contrato);
-        const mensagemCodificada = encodeURIComponent(mensagemPronta);
+        const messageStr = gerarMensagemWhatsapp(item.endereco, item.complemento, item.bairro, item.cidade, item.contrato);
+        const msgCodificada = encodeURIComponent(messageStr);
 
         let htmlTelefones = "";
         if (item.tel_res) {
             const numResLimpo = limparNumero(item.tel_res);
             htmlTelefones += `<a class="tel-link" href="tel:${item.tel_res}">📞 Residencial</a>`;
             if (numResLimpo.length >= 10) {
-                htmlTelefones += `<a href="https://api.whatsapp.com/send?phone=55${numResLimpo}&text=${mensagemCodificada}" target="_blank" style="color:#22c55e; text-decoration:none; font-weight:bold; margin-right:15px; font-size:12px;">💬 WhatsApp</a>`;
+                htmlTelefones += `<a href="https://api.whatsapp.com/send?phone=55${numResLimpo}&text=${msgCodificada}" target="_blank" style="color:#22c55e; text-decoration:none; font-weight:bold; margin-right:15px; font-size:12px;">💬 WhatsApp</a>`;
             }
         }
         if (item.tel_cel) {
             const numCelLimpo = limparNumero(item.tel_cel);
             htmlTelefones += `<a class="tel-link" href="tel:${item.tel_cel}">📱 Celular</a>`;
             if (numCelLimpo.length >= 10) {
-                htmlTelefones += `<a href="https://api.whatsapp.com/send?phone=55${numCelLimpo}&text=${mensagemCodificada}" target="_blank" style="color:#22c55e; text-decoration:none; font-weight:bold; margin-right:15px; font-size:12px;">💬 WhatsApp</a>`;
+                htmlTelefones += `<a href="https://api.whatsapp.com/send?phone=55${numCelLimpo}&text=${msgCodificada}" target="_blank" style="color:#22c55e; text-decoration:none; font-weight:bold; margin-right:15px; font-size:12px;">💬 WhatsApp</a>`;
             }
         }
 
@@ -907,7 +855,7 @@ function renderizarContratos(contratos) {
             </div>
             <div class="info-linha">
                 <strong>Equipamentos:</strong> ${item.qtd_equip} unidades (
-                <span style="color:#38bdf8; cursor:pointer; text-decoration:underline;" onclick="alert('MAC do Equipamento: ${item.mac || 'N/D'}')">
+                <span style="color:#38bdf8; cursor:pointer; text-decoration:underline;" onclick="alert('MAC do Equipamento: ${item.mac || \'N/D\'}')">
                     ${item.modelo_equip}
                 </span>)
             </div>
@@ -931,8 +879,6 @@ function renderizarContratos(contratos) {
                     <label>Fotos da Etiqueta do Equipamento Retirado (Obrigatório / Múltiplas fotos)</label>
                     <button type="button" class="btn-primary" style="margin-top:5px; margin-bottom:10px;" onclick="document.getElementById('input-etiqueta-${item.contrato}').click()">📸 ADICIONAR FOTO DA ETIQUETA</button>
                     <input type="file" accept="image/*" capture="environment" id="input-etiqueta-${item.contrato}" style="display:none;" onchange="adicionarFotoEquipamento('${item.contrato}', this)">
-                    
-                    <!-- Novo contêiner de fotos em grid vertical para comportar a seleção do modelo -->
                     <div id="grid-fotos-${item.contrato}" class="grid-fotos-equipamento"></div>
                 </div>
 
@@ -954,7 +900,6 @@ function renderizarContratos(contratos) {
                     <button type="button" id="btn-gps-manual-${item.contrato}" class="btn-warning" style="display:none; margin-top:10px;" onclick="obterGpsManual('${item.contrato}')">⚠️ ATUALIZAR GEOLOCALIZAÇÃO</button>
                 </div>
 
-                <!-- Botão de Conclusão Final -->
                 <button id="btn-concluir-final-${item.contrato}" class="btn-success" style="margin-top: 15px;" disabled onclick="enviarAtendimentoFinal('${item.contrato}')">SALVAR ATENDIMENTO</button>
             </div>
         `;
@@ -962,18 +907,14 @@ function renderizarContratos(contratos) {
     });
 }
 
-// --- FLUXO DE ADICIONAR FOTO DO EQUIPAMENTO COM SELEÇÃO DINÂMICA ---
+// --- FLUXOS DO PREENCHIMENTO PRINCIPAL ---
 function adicionarFotoEquipamento(contratoId, input) {
     const file = input.files[0];
     if (!file) return;
 
     const reader = new FileReader();
     reader.onload = function(e) {
-        // Salva a foto associada a uma propriedade "equipamento" vazia inicialmente
-        fotosEquipamentos[contratoId].push({
-            src: e.target.result,
-            equipamento: ""
-        });
+        fotosEquipamentos[contratoId].push({ src: e.target.result, equipamento: "" });
         renderizarFotosEquipamentos(contratoId);
         validarConclusao(contratoId);
     };
@@ -981,16 +922,13 @@ function adicionarFotoEquipamento(contratoId, input) {
     input.value = ""; 
 }
 
-// --- RENDERIZA O GRID DE FOTOS COM DROPDOWN DE SELEÇÃO DE EQUIPAMENTO RETIRADO ---
 function renderizarFotosEquipamentos(contratoId) {
     const grid = document.getElementById(`grid-fotos-${contratoId}`);
     grid.innerHTML = "";
 
-    // Recupera dados do contrato para extrair a lista de modelos disponíveis
     const contratoOrig = contratosMapeadosBrutos.find(c => c.contrato === contratoId);
     let modelosDisponiveis = [];
     if (contratoOrig && contratoOrig.modelo_equip) {
-        // Divide o campo modelo_equip por barra ou vírgula
         modelosDisponiveis = contratoOrig.modelo_equip.split('/').map(x => x.trim()).filter(Boolean);
     }
 
@@ -998,12 +936,10 @@ function renderizarFotosEquipamentos(contratoId) {
         const itemContainer = document.createElement('div');
         itemContainer.className = "foto-equip-container";
         
-        // Thumbnail da Imagem
         const img = document.createElement('img');
         img.src = imgObj.src;
         img.className = "foto-thumbnail";
         
-        // Botão para excluir foto individual
         const deleteBtn = document.createElement('button');
         deleteBtn.type = "button";
         deleteBtn.innerHTML = "✕";
@@ -1012,33 +948,32 @@ function renderizarFotosEquipamentos(contratoId) {
         deleteBtn.style.right = "12px";
         deleteBtn.style.background = "#ef4444";
         deleteBtn.style.color = "white";
-        deleteBtn.style.border = "none";
         deleteBtn.style.borderRadius = "50%";
         deleteBtn.style.width = "22px";
         deleteBtn.style.height = "22px";
         deleteBtn.style.fontSize = "11px";
         deleteBtn.style.cursor = "pointer";
-        deleteBtn.style.padding = "0";
         deleteBtn.style.display = "flex";
         deleteBtn.style.alignItems = "center";
         deleteBtn.style.justifyContent = "center";
         deleteBtn.style.fontWeight = "bold";
+        deleteBtn.style.border = "none";
+        deleteBtn.style.padding = "0";
         deleteBtn.onclick = () => {
             fotosEquipamentos[contratoId].splice(index, 1);
             renderizarFotosEquipamentos(contratoId);
             validarConclusao(contratoId);
         };
 
-        // Dropdown para seleção do equipamento correspondente a esta foto
         const selectEquip = document.createElement('select');
         selectEquip.style.marginTop = "8px";
         selectEquip.style.padding = "6px";
         selectEquip.style.fontSize = "12px";
-        selectEquip.style.borderColor = imgObj.equipamento ? "#22c55e" : "#ef4444"; // Altera cor da borda de acordo com preenchimento
+        selectEquip.style.borderColor = imgObj.equipamento ? "#22c55e" : "#ef4444";
 
         const optDefault = document.createElement('option');
         optDefault.value = "";
-        optDefault.textContent = "⚠️ SELECIONE O EQUIPAMENTO";
+        optDefault.textContent = "⚠️ SELECIONE O APARELHO";
         selectEquip.appendChild(optDefault);
 
         modelosDisponiveis.forEach(model => {
@@ -1069,7 +1004,6 @@ function definirFotoFachada(contratoId, input) {
     const reader = new FileReader();
     reader.onload = function(e) {
         fotoFachada[contratoId] = e.target.result;
-        
         const previewDiv = document.getElementById(`preview-fachada-${contratoId}`);
         previewDiv.innerHTML = `
             <div style="position:relative; width: 100px; aspect-ratio:1;">
@@ -1103,7 +1037,6 @@ async function obterGpsManual(contratoId) {
     validarConclusao(contratoId);
 }
 
-// --- VALIDAÇÃO GERAL DE CONCLUSÃO ---
 function validarConclusao(contratoId) {
     const statusAtivo = statusAtendimento[contratoId];
     const btnConcluir = document.getElementById(`btn-concluir-final-${contratoId}`);
@@ -1115,11 +1048,8 @@ function validarConclusao(contratoId) {
 
     if (statusAtivo === 'PRODUTIVO') {
         const fotosList = fotosEquipamentos[contratoId] || [];
-        
-        // Regra: Deve haver ao menos 1 foto e TODAS as fotos devem possuir um equipamento selecionado
         const possuiFotos = fotosList.length > 0;
         const todasComEquipamento = fotosList.every(f => f.equipamento !== "");
-
         btnConcluir.disabled = !(possuiFotos && todasComEquipamento);
     } else if (statusAtivo === 'IMPRODUTIVO') {
         const temFotoFachada = !!fotoFachada[contratoId];
@@ -1147,7 +1077,6 @@ function validarConclusao(contratoId) {
     }
 }
 
-// --- ENVIAR CONCLUSÃO AO AZURE ---
 async function enviarAtendimentoFinal(contratoId) {
     const statusAtivo = statusAtendimento[contratoId];
     const tecnico = localStorage.getItem('login_tecnico');
@@ -1156,7 +1085,6 @@ async function enviarAtendimentoFinal(contratoId) {
     btnSalvar.disabled = true;
     btnSalvar.textContent = "SALVANDO NO AZURE...";
 
-    // Agrupa a lista de equipamentos selecionados para salvar no histórico
     let observacaoRetirados = "";
     if (statusAtivo === 'PRODUTIVO') {
         const selecionados = fotosEquipamentos[contratoId].map(f => f.equipamento).filter(Boolean);
@@ -1175,9 +1103,7 @@ async function enviarAtendimentoFinal(contratoId) {
     };
 
     if (statusAtivo === 'PRODUTIVO') {
-        // Envia apenas o vetor de strings Base64 das fotos para o Blob Storage
         payload.imagens_etiqueta = fotosEquipamentos[contratoId].map(f => f.src);
-        // Grava a seleção de aparelhos no campo de observação
         payload.observacao_conclusao = observacaoRetirados;
     } else {
         payload.imagem_fachada = fotoFachada[contratoId];
@@ -1195,6 +1121,9 @@ async function enviarAtendimentoFinal(contratoId) {
         if (response.ok) {
             alert(`Atendimento do contrato ${contratoId} registrado com sucesso!`);
 
+            const contratoOrig = contratosMapeadosBrutos.find(c => c.contrato === contratoId);
+
+            // Grava no histórico local incluindo a propriedade modelo_equip para futuras edições [2]
             const registroHistorico = {
                 contrato: contratoId,
                 status: statusAtivo,
@@ -1202,7 +1131,8 @@ async function enviarAtendimentoFinal(contratoId) {
                 tecnico: tecnico,
                 codigo_baixa: statusAtivo === 'IMPRODUTIVO' ? payload.codigo_baixa : null,
                 observacao: statusAtivo === 'PRODUTIVO' ? observacaoRetirados : payload.observacao_conclusao,
-                qtd_fotos: statusAtivo === 'PRODUTIVO' ? payload.imagens_etiqueta.length : 1
+                qtd_fotos: statusAtivo === 'PRODUTIVO' ? payload.imagens_etiqueta.length : 1,
+                modelo_equip: contratoOrig ? contratoOrig.modelo_equip : "" // Salva modelos para permitir edições offline [2]
             };
             salvarNoHistoricoLocal(registroHistorico);
 
@@ -1224,13 +1154,17 @@ async function enviarAtendimentoFinal(contratoId) {
         }
     } catch (err) {
         console.error(err);
-        alert("Erro de rede ao conectar com o serviço do Azure.");
+        alert("Erro de rede.");
         btnSalvar.disabled = false;
         btnSalvar.textContent = "SALVAR ATENDIMENTO";
     }
 }
 
-// --- HISTÓRICO LOCAL E REVERSÃO DE BAIXAS ---
+
+// =========================================================================
+// --- NOVO SISTEMA: GESTÃO DE EDICÃO DENTRO DO HISTÓRICO LOCAL [2] ---
+// =========================================================================
+
 function salvarNoHistoricoLocal(novoRegistro) {
     let historico = [];
     try {
@@ -1238,11 +1172,15 @@ function salvarNoHistoricoLocal(novoRegistro) {
     } catch (e) {
         historico = [];
     }
+    
+    // Evita duplicados em inserções locais
+    historico = historico.filter(x => x.contrato !== novoRegistro.contrato);
     historico.unshift(novoRegistro); 
     if (historico.length > 50) historico = historico.slice(0, 50);
     localStorage.setItem('historico_atendimentos', JSON.stringify(historico));
 }
 
+// RENDERIZA A LISTA DO HISTÓRICO LOCAL COM O EMBEDDED EDIT-FORM INTEGRADO [2]
 function renderizarListaHistorico() {
     const container = document.getElementById('historico-lista-container');
     container.innerHTML = '';
@@ -1266,33 +1204,381 @@ function renderizarListaHistorico() {
         itemCard.style.borderRadius = '8px';
         itemCard.style.padding = '12px';
         itemCard.style.fontSize = '13px';
+        itemCard.id = `card-historico-${item.contrato}`;
         
         const dataFormatada = new Date(item.dataHora).toLocaleString('pt-BR');
         const tagColor = item.status === 'PRODUTIVO' ? '#22c55e' : '#ef4444';
 
-        // Adiciona botão para o técnico reverter a baixa caso tenha sido improdutiva
-        let btnReverterHTML = "";
-        if (item.status === 'IMPRODUTIVO') {
-            btnReverterHTML = `<button type="button" class="btn-warning" style="margin-top:10px; font-size:11px; padding:6px 12px; width:100%; font-weight:bold;" onclick="reverterBaixaLocal('${item.contrato}', '${item.tecnico}')">🔄 REVERTER PARA ATIVO (RETIRADO)</button>`;
-        }
+        // Caixa de Edição Inline embutida em cada card [2]
+        const painelEdicaoHTML = `
+            <div id="painel-edicao-local-${item.contrato}" style="display: none; border-top: 1px dashed #334155; padding-top: 15px; margin-top: 15px;">
+                <h4 style="margin-top:0; color:#cbd5e1; font-size:13px;">⚙️ Editar Atendimento: ${item.contrato}</h4>
+                
+                <label style="font-weight:bold; color:#94a3b8; font-size:12px;">Selecione o Novo Resultado:</label>
+                <div style="display: flex; gap: 10px; margin-top: 5px; margin-bottom: 15px;">
+                    <button type="button" id="btn-prod-edicao-${item.contrato}" class="btn-status-choice" style="padding:8px 5px; font-size:11px;" onclick="selecionarStatusEdicao('${item.contrato}', 'PRODUTIVO')">👍 PRODUTIVO</button>
+                    <button type="button" id="btn-improd-edicao-${item.contrato}" class="btn-status-choice" style="padding:8px 5px; font-size:11px;" onclick="selecionarStatusEdicao('${item.contrato}', 'IMPRODUTIVO')">👎 IMPRODUTIVO</button>
+                </div>
+
+                <!-- SUB-BOX PRODUTIVO EDICAO -->
+                <div id="box-prod-edicao-${item.contrato}" style="display:none; border-top: 1px dashed #334155; padding-top: 10px;">
+                    <label style="font-size:12px;">Fotos das Etiquetas Retiradas (Mínimo de 1 foto)</label>
+                    <button type="button" class="btn-primary" style="margin-top:5px; margin-bottom:10px; font-size:12px; padding:8px 15px;" onclick="document.getElementById('input-etiqueta-edicao-${item.contrato}').click()">📸 ADICIONAR FOTO DA ETIQUETA</button>
+                    <input type="file" accept="image/*" capture="environment" id="input-etiqueta-edicao-${item.contrato}" style="display:none;" onchange="adicionarFotoEquipamentoEdicao('${item.contrato}', this, '${item.modelo_equip || ''}')">
+                    <div id="grid-fotos-edicao-${item.contrato}" class="grid-fotos-equipamento"></div>
+                </div>
+
+                <!-- SUB-BOX IMPRODUTIVO EDICAO -->
+                <div id="box-improd-edicao-${item.contrato}" style="display:none; border-top: 1px dashed #334155; padding-top: 10px;">
+                    <label style="font-size:12px;">Foto da Fachada da Residência (Obrigatório)</label>
+                    <button type="button" class="btn-primary" style="margin-top:5px; margin-bottom:10px; font-size:12px; padding:8px 15px;" onclick="document.getElementById('input-fachada-edicao-${item.contrato}').click()">📸 TIRAR FOTO DA FACHADA</button>
+                    <input type="file" accept="image/*" capture="environment" id="input-fachada-edicao-${item.contrato}" style="display:none;" onchange="definirFotoFachadaEdicao('${item.contrato}', this)">
+                    <div id="preview-fachada-edicao-${item.contrato}" style="margin-bottom: 10px;"></div>
+
+                    <label style="font-size:12px;">Código de Baixa (Obrigatório)</label>
+                    <input type="text" id="input-codigo-baixa-edicao-${item.contrato}" placeholder="DIGITE O CÓDIGO DE BAIXA" value="${item.codigo_baixa || ''}" oninput="this.value = this.value.toUpperCase(); validarConclusaoEdicao('${item.contrato}')">
+
+                    <label style="font-size:12px;">Descrição Opcional</label>
+                    <textarea id="input-desc-improd-edicao-${item.contrato}" placeholder="DIGITE DETALHES ADICIONAIS" oninput="this.value = this.value.toUpperCase()"></textarea>
+                    
+                    <div id="status-gps-edicao-${item.contrato}" style="margin-top: 12px; padding: 12px; border-radius: 6px; font-size: 11px; font-weight: bold; text-align: center;"></div>
+                    <button type="button" id="btn-gps-manual-edicao-${item.contrato}" class="btn-warning" style="display:none; margin-top:10px; font-size:11px; padding:8px 10px;" onclick="obterGpsManualEdicao('${item.contrato}')">⚠️ ATUALIZAR GEOLOCALIZAÇÃO</button>
+                </div>
+
+                <div style="display:flex; gap:10px; margin-top:15px;">
+                    <button type="button" class="btn-secondary" style="font-size:12px; padding:8px 15px; flex:1;" onclick="cancelarEdicaoLocal('${item.contrato}')">CANCELAR</button>
+                    <button type="button" id="btn-salvar-edicao-${item.contrato}" class="btn-success" style="font-size:12px; padding:8px 15px; flex:1;" disabled onclick="salvarAtendimentoEdicaoFinal('${item.contrato}')">SALVAR EDICÃO</button>
+                </div>
+            </div>
+        `;
 
         itemCard.innerHTML = `
-            <div style="display:flex; justify-content:space-between; margin-bottom:8px; border-bottom:1px dashed #334155; padding-bottom:5px;">
-                <strong style="color:#38bdf8;">CONTRATO: ${item.contrato}</strong>
-                <span style="color:${tagColor}; font-weight:bold; font-size:11px;">${item.status}</span>
+            <!-- Bloco de Texto Original -->
+            <div id="bloco-info-local-${item.contrato}">
+                <div style="display:flex; justify-content:space-between; margin-bottom:8px; border-bottom:1px dashed #334155; padding-bottom:5px;">
+                    <strong style="color:#38bdf8;">CONTRATO: ${item.contrato}</strong>
+                    <span style="color:${tagColor}; font-weight:bold; font-size:11px;">${item.status}</span>
+                </div>
+                <div style="color:#cbd5e1; margin-bottom:4px;">📅 <strong>Data:</strong> ${dataFormatada}</div>
+                <div style="color:#cbd5e1; margin-bottom:4px;">👤 <strong>Técnico:</strong> ${item.tecnico}</div>
+                ${item.codigo_baixa ? `<div style="color:#cbd5e1; margin-bottom:4px;">🔑 <strong>Cód. Baixa:</strong> ${item.codigo_baixa}</div>` : ''}
+                <div style="color:#94a3b8; font-style:italic; word-break: break-word;">💬 ${item.observacao || 'Sem observações'}</div>
+                <div style="color:#cbd5e1; font-size:11px; margin-top:5px; text-align:right;">📷 Fotos salvas: ${item.qtd_fotos}</div>
+                
+                <div style="display:flex; gap:8px; margin-top:10px;">
+                    <button type="button" class="btn-warning" style="font-size:11px; padding:6px 12px; flex:1; margin-top:0;" onclick="iniciarEdicaoLocal('${item.contrato}')">⚙️ EDITAR ATENDIMENTO</button>
+                    <button type="button" class="btn-danger" style="font-size:11px; padding:6px 12px; flex:1; margin-top:0;" onclick="reverterBaixaLocal('${item.contrato}', '${item.tecnico}')">🗑️ EXCLUIR/REVERTER</button>
+                </div>
             </div>
-            <div style="color:#cbd5e1; margin-bottom:4px;">📅 <strong>Data:</strong> ${dataFormatada}</div>
-            <div style="color:#cbd5e1; margin-bottom:4px;">👤 <strong>Técnico:</strong> ${item.tecnico}</div>
-            ${item.codigo_baixa ? `<div style="color:#cbd5e1; margin-bottom:4px;">🔑 <strong>Cód. Baixa:</strong> ${item.codigo_baixa}</div>` : ''}
-            <div style="color:#94a3b8; font-style:italic; word-break: break-word;">💬 ${item.observacao || 'Sem observações'}</div>
-            <div style="color:#cbd5e1; font-size:11px; margin-top:5px; text-align:right;">📷 Fotos salvas: ${item.qtd_fotos}</div>
-            ${btnReverterHTML}
+
+            <!-- Bloco de Edição Embutido -->
+            ${painelEdicaoHTML}
         `;
         container.appendChild(itemCard);
     });
 }
 
-// --- FLUXO DE REVERSÃO LOCAL PELO DISPOSITIVO DO TÉCNICO ---
+// INICIALIZADOR DE EDICÃO DENTRO DO MODAL DE HISTÓRICO
+function iniciarEdicaoLocal(contratoId) {
+    // Esconde visualizador estático do card
+    document.getElementById(`bloco-info-local-${contratoId}`).style.display = "none";
+    // Exibe o painel inline do formulário de edicão
+    document.getElementById(`painel-edicao-local-${contratoId}`).style.display = "block";
+
+    // Busca dados no cache local
+    const historico = JSON.parse(localStorage.getItem('historico_atendimentos')) || [];
+    const item = historico.find(x => x.contrato === contratoId);
+
+    if (item) {
+        // Inicializa as estruturas temporárias da edicão
+        fotosEquipamentosEdicao[contratoId] = [];
+        fotoFachadaEdicao[contratoId] = null;
+        statusAtendimentoEdicao[contratoId] = item.status;
+
+        // Ativa o botão correspondente do status inicial
+        selecionarStatusEdicao(contratoId, item.status);
+    }
+}
+
+function cancelarEdicaoLocal(contratoId) {
+    document.getElementById(`bloco-info-local-${contratoId}`).style.display = "block";
+    document.getElementById(`painel-edicao-local-${contratoId}`).style.display = "none";
+
+    delete fotosEquipamentosEdicao[contratoId];
+    delete fotoFachadaEdicao[contratoId];
+    delete statusAtendimentoEdicao[contratoId];
+}
+
+// ALTERNA ENTRE PRODUTIVO OU IMPRODUTIVO NO HISTÓRICO LOCAL [2]
+function selecionarStatusEdicao(contratoId, status) {
+    statusAtendimentoEdicao[contratoId] = status;
+
+    const btnProd = document.getElementById(`btn-prod-edicao-${contratoId}`);
+    const btnImprod = document.getElementById(`btn-improd-edicao-${contratoId}`);
+    const boxProd = document.getElementById(`box-prod-edicao-${contratoId}`);
+    const boxImprod = document.getElementById(`box-improd-edicao-${contratoId}`);
+
+    if (status === 'PRODUTIVO') {
+        btnProd.classList.add('active-prod');
+        btnImprod.classList.remove('active-improd');
+        boxProd.style.display = 'block';
+        boxImprod.style.display = 'none';
+    } else {
+        btnProd.classList.remove('active-prod');
+        btnImprod.classList.add('active-improd');
+        boxProd.style.display = 'none';
+        boxImprod.style.display = 'block';
+    }
+    validarConclusaoEdicao(contratoId);
+}
+
+// ADICIONA FOTOS NO GRID INTERNO DE EDICÃO [2]
+function adicionarFotoEquipamentoEdicao(contratoId, input, modeloEquipStr) {
+    const file = input.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        fotosEquipamentosEdicao[contratoId].push({
+            src: e.target.result,
+            equipamento: ""
+        });
+        renderizarFotosEquipamentosEdicao(contratoId, modeloEquipStr);
+        validarConclusaoEdicao(contratoId);
+    };
+    reader.readAsDataURL(file);
+    input.value = "";
+}
+
+function renderizarFotosEquipamentosEdicao(contratoId, modeloEquipStr) {
+    const grid = document.getElementById(`grid-fotos-edicao-${contratoId}`);
+    grid.innerHTML = "";
+
+    const modelos = modeloEquipStr ? modeloEquipStr.split('/').map(x => x.trim()).filter(Boolean) : [];
+
+    fotosEquipamentosEdicao[contratoId].forEach((imgObj, index) => {
+        const itemContainer = document.createElement('div');
+        itemContainer.className = "foto-equip-container";
+
+        const img = document.createElement('img');
+        img.src = imgObj.src;
+        img.className = "foto-thumbnail";
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = "button";
+        deleteBtn.innerHTML = "✕";
+        deleteBtn.style.position = "absolute";
+        deleteBtn.style.top = "12px";
+        deleteBtn.style.right = "12px";
+        deleteBtn.style.background = "#ef4444";
+        deleteBtn.style.color = "white";
+        deleteBtn.style.borderRadius = "50%";
+        deleteBtn.style.width = "22px";
+        deleteBtn.style.height = "22px";
+        deleteBtn.style.fontSize = "11px";
+        deleteBtn.style.cursor = "pointer";
+        deleteBtn.style.display = "flex";
+        deleteBtn.style.alignItems = "center";
+        deleteBtn.style.justifyContent = "center";
+        deleteBtn.style.fontWeight = "bold";
+        deleteBtn.style.border = "none";
+        deleteBtn.onclick = () => {
+            fotosEquipamentosEdicao[contratoId].splice(index, 1);
+            renderizarFotosEquipamentosEdicao(contratoId, modeloEquipStr);
+            validarConclusaoEdicao(contratoId);
+        };
+
+        const selectEquip = document.createElement('select');
+        selectEquip.style.marginTop = "8px";
+        selectEquip.style.padding = "6px";
+        selectEquip.style.fontSize = "12px";
+        selectEquip.style.borderColor = imgObj.equipamento ? "#22c55e" : "#ef4444";
+
+        const optDefault = document.createElement('option');
+        optDefault.value = "";
+        optDefault.textContent = "⚠️ SELECIONE O APARELHO";
+        selectEquip.appendChild(optDefault);
+
+        modelos.forEach(model => {
+            const opt = document.createElement('option');
+            opt.value = model;
+            opt.textContent = model;
+            if (imgObj.equipamento === model) opt.selected = true;
+            selectEquip.appendChild(opt);
+        });
+
+        selectEquip.onchange = (e) => {
+            fotosEquipamentosEdicao[contratoId][index].equipamento = e.target.value;
+            selectEquip.style.borderColor = e.target.value ? "#22c55e" : "#ef4444";
+            validarConclusaoEdicao(contratoId);
+        };
+
+        itemContainer.appendChild(img);
+        itemContainer.appendChild(deleteBtn);
+        itemContainer.appendChild(selectEquip);
+        grid.appendChild(itemContainer);
+    });
+}
+
+function definirFotoFachadaEdicao(contratoId, input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        fotoFachadaEdicao[contratoId] = e.target.result;
+        const previewDiv = document.getElementById(`preview-fachada-edicao-${contratoId}`);
+        previewDiv.innerHTML = `
+            <div style="position:relative; width: 100px; aspect-ratio:1;">
+                <img src="${e.target.result}" style="width:100%; height:100%; object-fit:cover; border-radius:6px; border:1px solid #475569;">
+                <button type="button" style="position:absolute; top:2px; right:2px; background:#ef4444; color:white; border:none; border-radius:50%; width:20px; height:20px; font-size:10px; cursor:pointer; padding:0; display:flex; align-items:center; justify-content:center; font-weight:bold;" onclick="removerFotoFachadaEdicao('${contratoId}')">✕</button>
+            </div>
+        `;
+        validarConclusaoEdicao(contratoId);
+    };
+    reader.readAsDataURL(file);
+    input.value = "";
+}
+
+function removerFotoFachadaEdicao(contratoId) {
+    fotoFachadaEdicao[contratoId] = null;
+    document.getElementById(`preview-fachada-edicao-${contratoId}`).innerHTML = "";
+    validarConclusaoEdicao(contratoId);
+}
+
+async function obterGpsManualEdicao(contratoId) {
+    const btnGps = document.getElementById(`btn-gps-manual-edicao-${contratoId}`);
+    btnGps.disabled = true;
+    btnGps.textContent = "BUSCANDO SATÉLITE...";
+    try {
+        localizacaoTecnico = await obterGeolocalizacao();
+    } catch (e) {
+        alert("Não foi possível acessar sua localização.");
+    }
+    btnGps.disabled = false;
+    btnGps.textContent = "⚠️ ATUALIZAR GEOLOCALIZAÇÃO";
+    validarConclusaoEdicao(contratoId);
+}
+
+function validarConclusaoEdicao(contratoId) {
+    const statusAtivo = statusAtendimentoEdicao[contratoId];
+    const btnSalvar = document.getElementById(`btn-salvar-edicao-${contratoId}`);
+    
+    if (!statusAtivo) {
+        btnSalvar.disabled = true;
+        return;
+    }
+
+    if (statusAtivo === 'PRODUTIVO') {
+        const fotosList = fotosEquipamentosEdicao[contratoId] || [];
+        const possuiFotos = fotosList.length > 0;
+        const todasComEquipamento = fotosList.every(f => f.equipamento !== "");
+        btnSalvar.disabled = !(possuiFotos && todasComEquipamento);
+    } else if (statusAtivo === 'IMPRODUTIVO') {
+        const temFotoFachada = !!fotoFachadaEdicao[contratoId];
+        const codigoBaixa = document.getElementById(`input-codigo-baixa-edicao-${contratoId}`).value.trim();
+        const temGps = !!(localizacaoTecnico && localizacaoTecnico.latitude && localizacaoTecnico.longitude);
+
+        const statusGpsBox = document.getElementById(`status-gps-edicao-${contratoId}`);
+        const btnGps = document.getElementById(`btn-gps-manual-edicao-${contratoId}`);
+        
+        if (temGps) {
+            statusGpsBox.style.background = "#14532d";
+            statusGpsBox.style.color = "#4ade80";
+            statusGpsBox.style.border = "1px solid #22c55e";
+            statusGpsBox.innerHTML = `📍 GPS CAPTURADO:<br>Lat ${localizacaoTecnico.latitude} | Lon ${localizacaoTecnico.longitude}`;
+            btnGps.style.display = "none";
+        } else {
+            statusGpsBox.style.background = "#7f1d1d";
+            statusGpsBox.style.color = "#fca5a5";
+            statusGpsBox.style.border = "1px solid #ef4444";
+            statusGpsBox.innerHTML = `⚠️ GEOLOCALIZAÇÃO OBRIGATÓRIA PENDENTE.`;
+            btnGps.style.display = "block";
+        }
+
+        btnSalvar.disabled = !(temFotoFachada && codigoBaixa && temGps);
+    }
+}
+
+// SALVA A ALTERAÇÃO ENVIANDO-A NOVAMENTE PARA O AZURE (SOBRESCREVE O REGISTRO ANTERIOR) [2]
+async function salvarAtendimentoEdicaoFinal(contratoId) {
+    const statusAtivo = statusAtendimentoEdicao[contratoId];
+    const tecnico = localStorage.getItem('login_tecnico');
+    const btnSalvar = document.getElementById(`btn-salvar-edicao-${contratoId}`);
+
+    btnSalvar.disabled = true;
+    btnSalvar.textContent = "SALVANDO...";
+
+    let observacaoRetirados = "";
+    if (statusAtivo === 'PRODUTIVO') {
+        const selecionados = fotosEquipamentosEdicao[contratoId].map(f => f.equipamento).filter(Boolean);
+        observacaoRetirados = `Retirados: ${selecionados.join(', ')}`;
+    }
+
+    let payload = {
+        contrato: contratoId,
+        tecnico: tecnico,
+        status: statusAtivo,
+        data_conclusao: new Date().toISOString(),
+        localizacao: localizacaoTecnico ? {
+            latitude: localizacaoTecnico.latitude,
+            longitude: localizacaoTecnico.longitude
+        } : null
+    };
+
+    if (statusAtivo === 'PRODUTIVO') {
+        payload.imagens_etiqueta = fotosEquipamentosEdicao[contratoId].map(f => f.src);
+        payload.observacao_conclusao = observacaoRetirados;
+    } else {
+        payload.imagem_fachada = fotoFachadaEdicao[contratoId];
+        payload.codigo_baixa = document.getElementById(`input-codigo-baixa-edicao-${contratoId}`).value.trim();
+        payload.observacao_conclusao = document.getElementById(`input-desc-improd-edicao-${contratoId}`).value.trim();
+    }
+
+    try {
+        const response = await fetch('/api/concluirAtendimento', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+            alert(`Atendimento do contrato ${contratoId} atualizado com sucesso no Azure!`);
+
+            const historico = JSON.parse(localStorage.getItem('historico_atendimentos')) || [];
+            const itemOrig = historico.find(x => x.contrato === contratoId);
+
+            // Grava no histórico local incluindo a propriedade modelo_equip para futuras edições [2]
+            const registroHistorico = {
+                contrato: contratoId,
+                status: statusAtivo,
+                dataHora: new Date().toISOString(),
+                tecnico: tecnico,
+                codigo_baixa: statusAtivo === 'IMPRODUTIVO' ? payload.codigo_baixa : null,
+                observacao: statusAtivo === 'PRODUTIVO' ? observacaoRetirados : payload.observacao_conclusao,
+                qtd_fotos: statusAtivo === 'PRODUTIVO' ? payload.imagens_etiqueta.length : 1,
+                modelo_equip: itemOrig ? itemOrig.modelo_equip : "" 
+            };
+            salvarNoHistoricoLocal(registroHistorico);
+
+            // Deleta lixos de memoria temporários
+            delete fotosEquipamentosEdicao[contratoId];
+            delete fotoFachadaEdicao[contratoId];
+            delete statusAtendimentoEdicao[contratoId];
+
+            renderizarListaHistorico();
+        } else {
+            alert("Erro ao salvar alterações no Azure.");
+            btnSalvar.disabled = false;
+        }
+    } catch (err) {
+        console.error(err);
+        alert("Erro de conexão.");
+        btnSalvar.disabled = false;
+    }
+}
+
+// --- REMOVER/REVERTER REGISTRO LOCAL E MANDAR API PARA ATUALIZAR FILA ---
 async function reverterBaixaLocal(contrato, tecnico) {
     if (!confirm(`Confirmar reversão do contrato ${contrato}? Ele retornará para a sua fila ativa de retirada.`)) {
         return;
@@ -1308,14 +1594,11 @@ async function reverterBaixaLocal(contrato, tecnico) {
         if (response.ok) {
             alert("Contrato restaurado para fila ativa de retirada!");
             
-            // Remove o item do localStorage histórico local
             let historico = JSON.parse(localStorage.getItem('historico_atendimentos')) || [];
             historico = historico.filter(x => x.contrato !== contrato);
             localStorage.setItem('historico_atendimentos', JSON.stringify(historico));
 
             renderizarListaHistorico();
-            
-            // Força a fila principal de trabalho a recarregar para trazer o contrato de volta na tela
             document.getElementById('btn-carregar').click();
         } else {
             alert("Erro ao reverter baixa.");
