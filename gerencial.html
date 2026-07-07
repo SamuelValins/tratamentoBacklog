@@ -142,7 +142,7 @@ tr:hover {
     box-sizing: border-box;
 }
 
-/* Lista de Atendimentos */
+/* Lista de Atendimentos em Duas Colunas [2] */
 .historico-lista-scroll {
     max-height: 380px;
     overflow-y: auto;
@@ -156,7 +156,7 @@ tr:hover {
     padding: 15px;
     margin-bottom: 15px;
     display: grid;
-    grid-template-columns: 1.2fr 1fr; 
+    grid-template-columns: 1.2fr 1fr; /* Lado esquerdo dados, lado direito imagens [2] */
     gap: 15px;
     align-items: start;
 }
@@ -234,7 +234,7 @@ tr:hover {
                 </div>
                 <div>
                     <label>Login de Acesso</label>
-                    <input type="text" id="cad-login" placeholder="EX: f198483" required oninput="this.value = this.value.toLowerCase().trim()">
+                    <input type="text" id="cad-login" placeholder="EX: SILVA.CARLOS" required oninput="this.value = this.value.toLowerCase().trim()">
                 </div>
             </div>
             
@@ -294,7 +294,7 @@ tr:hover {
     <!-- Tabela de Usuários Cadastrados -->
     <div class="card">
         <h2 style="margin-top: 0; color: #38bdf8; font-size: 18px;">📋 Usuários Autorizados</h2>
-        <p style="font-size: 12px; color: #94a3b8; margin-bottom: 15px;">Clique no <strong>nome do técnico</strong> para ver o histórico detalhado de atendimentos dele.</p>
+        <p style="font-size: 12px; color: #94a3b8; margin-bottom: 15px;">Clique no <strong>nome do técnico</strong> para ver o histórico detalhado de atendimentos dele [1].</p>
         
         <div class="table-container">
             <table>
@@ -349,14 +349,14 @@ tr:hover {
     </div>
 </div>
 
-<!-- Modal de Histórico de Atendimentos do Técnico -->
+<!-- Modal de Histórico de Atendimentos do Técnico [1] -->
 <div id="modal-historico" class="modal-overlay">
     <div class="modal-content" style="max-width: 700px; width: 95%;">
         <h3 style="margin-top: 0; color: #38bdf8; display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
             <span id="historico-titulo-tecnico">📋 Histórico de Atendimentos</span>
             <button class="btn-danger" style="padding: 6px 12px; font-size: 12px;" onclick="fecharModal('modal-historico')">✕ FECHAR</button>
         </h3>
-        <p style="font-size: 12px; color: #94a3b8; margin-bottom: 15px;">Listagem lateral: Informações à esquerda e múltiplas evidências à direita.</p>
+        <p style="font-size: 12px; color: #94a3b8; margin-bottom: 15px;">Listagem lateral: Informações à esquerda e múltiplas evidências à direita [2].</p>
         
         <!-- Botões de Filtragem Interna de Histórico -->
         <div style="display: flex; gap: 8px; margin-bottom: 15px;">
@@ -380,68 +380,43 @@ tr:hover {
 </div>
 
 <script>
-// --- VARIÁVEIS DE ESTADO ---
+// --- VARIÁVEIS DE ESTADO DO BANCO DE DADOS ---
 let listaTecnicos = [];
 let listaAtendimentos = [];
 
-// Filtros
+// Variáveis de filtros visuais
 let mainFiltroStatus = "TODOS";
 let tecnicoAtivoLogin = "";
 let filtroHistoricoAtivo = "TODOS";
 
-// --- TRATAMENTO SEGURO DE ERROS DO SERVIDOR (Não esconde o erro original) ---
-async function obterMensagemErro(response, mensagemPadrao) {
-    let errorMsg = mensagemPadrao;
-    try {
-        const err = await response.json();
-        errorMsg = err.error || err.message || errorMsg;
-    } catch (parseError) {
-        try {
-            const rawText = await response.text();
-            if (rawText && rawText.length < 200) {
-                errorMsg = rawText;
-            } else {
-                errorMsg = `Código de Status: ${response.status} (${response.statusText})`;
-            }
-        } catch (e) {
-            errorMsg = `Código de Status: ${response.status}`;
-        }
-    }
-    return errorMsg;
-}
-
-// --- CARREGADOR INICIAL ---
+// --- INICIALIZADOR DE DADOS ---
 async function carregarDados() {
     const tbody = document.getElementById('tabela-usuarios-corpo');
     tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #94a3b8; padding: 20px;">Atualizando informações no banco de dados do Azure...</td></tr>';
 
     try {
+        // 1. Busca lista de técnicos cadastrados no Azure [2]
         const responseTecnicos = await fetch('/api/gerenciarTecnicos');
         if (responseTecnicos.ok) {
-            const rawData = await responseTecnicos.json();
-            listaTecnicos = rawData.map(t => ({
-                nome: t.nome || t.Nome || 'N/D',
-                login: t.login || t.rowKey || t.RowKey || '',
-                empresa: t.empresa || t.Empresa || 'N/D',
-                cidade: t.cidade || t.CidadeAtuacao || 'TODAS',
-                status: t.status || t.Status || 'ATIVO'
-            }));
+            listaTecnicos = await responseTecnicos.json();
         } else {
-            const msg = await obterMensagemErro(responseTecnicos, "Não foi possível buscar a lista de técnicos.");
-            tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: #ef4444; padding: 20px;">Erro do Servidor: ${msg}</td></tr>`;
-            return;
+            console.error("Falha ao obter técnicos.");
         }
 
+        // 2. Busca histórico geral para alimentar contadores dinâmicos [2]
         await carregarHistoricoGeral();
+
+        // 3. Atualiza filtros e tabela
         atualizarFiltroEmpresas();
         renderizarTabela();
 
     } catch (error) {
-        console.error(error);
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #ef4444; padding: 20px;">Falha ao comunicar com o servidor. Verifique suas conexões ou rotas de API.</td></tr>';
+        console.error("Erro ao carregar dados do backend:", error);
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #ef4444; padding: 20px;">Falha de comunicação com o servidor Azure. Verifique sua conexão.</td></tr>';
     }
 }
 
+// --- BUSCA HISTÓRICO GERAL (SWA / AZURE FUNCTIONS) [2] ---
 async function carregarHistoricoGeral() {
     const dataInicioVal = document.getElementById('filtro-data-inicio').value;
     const dataFimVal = document.getElementById('filtro-data-fim').value;
@@ -451,23 +426,30 @@ async function carregarHistoricoGeral() {
     if (dataInicioVal) params.push(`dataInicio=${dataInicioVal}`);
     if (dataFimVal) params.push(`dataFim=${dataFimVal}`);
     
-    if (params.length > 0) url += `?${params.join('&')}`;
+    if (params.length > 0) {
+        url += `?${params.join('&')}`;
+    }
 
     try {
         const response = await fetch(url);
         if (response.ok) {
             listaAtendimentos = await response.json();
+        } else {
+            console.error("Falha ao sincronizar histórico.");
         }
     } catch (e) {
-        console.error("Falha ao obter histórico geral:", e);
+        console.error("Erro ao carregar histórico:", e);
     }
 }
 
+// --- GESTÃO DE MUDANÇA DE DATA ---
 async function handleFiltroDataAlterado() {
+    // Ao alterar o período, recarrega o histórico do banco de dados para recalculação de estatísticas [2]
     await carregarHistoricoGeral();
     renderizarTabela();
 }
 
+// --- CONTROLE DE EXIBIÇÃO DO FORMULÁRIO DE CADASTRO ---
 function toggleCadastro() {
     const card = document.getElementById('card-cadastro');
     const btn = document.getElementById('btn-toggle-cadastro');
@@ -482,6 +464,7 @@ function toggleCadastro() {
     }
 }
 
+// --- CONFIGURA O FILTRO DE RESULTADO NO PAINEL PRINCIPAL ---
 function setMainFiltroStatus(status) {
     mainFiltroStatus = status;
     atualizarBotoesFiltroMain();
@@ -502,6 +485,7 @@ function atualizarBotoesFiltroMain() {
     else if (mainFiltroStatus === 'IMPRODUTIVO') btnImprod.className = "btn-danger";
 }
 
+// --- ATUALIZAÇÃO DINÂMICA DO FILTRO DE EMPRESAS ---
 function atualizarFiltroEmpresas() {
     const selectEmpresa = document.getElementById('filtro-empresa');
     const valorSelecionadoAtual = selectEmpresa.value || "TODAS";
@@ -523,7 +507,7 @@ function atualizarFiltroEmpresas() {
     }
 }
 
-// --- RENDERIZADOR DA TABELA ---
+// --- RENDERIZADOR DA TABELA COM FILTROS DE BUSCA E DATA DINÂMICA [2] ---
 function renderizarTabela() {
     const tbody = document.getElementById('tabela-usuarios-corpo');
     tbody.innerHTML = "";
@@ -531,24 +515,20 @@ function renderizarTabela() {
     const valorFiltroUsuario = document.getElementById('filtro-usuario').value.toLowerCase().trim();
     const valorFiltroEmpresa = document.getElementById('filtro-empresa').value;
 
+    // Mapeia e calcula as estatísticas dinamicamente por técnico com base na lista carregada
     const tecnicosProcessados = listaTecnicos.map(tecnico => {
-        const loginLower = (tecnico.login || '').toLowerCase();
-        const atendimentosDoTecnico = listaAtendimentos.filter(a => (a.tecnicoLogin || '').toLowerCase() === loginLower);
-        
+        const atendimentosDoTecnico = listaAtendimentos.filter(a => a.tecnicoLogin === tecnico.login);
         const prodCount = atendimentosDoTecnico.filter(a => a.status === 'PRODUTIVO').length;
         const improdCount = atendimentosDoTecnico.filter(a => a.status === 'IMPRODUTIVO').length;
 
         return {
-            nome: tecnico.nome || 'N/D',
-            login: tecnico.login || '',
-            empresa: tecnico.empresa || 'N/D',
-            cidade: tecnico.cidade || 'TODAS',
-            status: tecnico.status || 'ATIVO',
+            ...tecnico,
             prodDinamico: prodCount,
             improdDinamico: improdCount
         };
     });
 
+    // Aplica os filtros sobre os dados de técnicos carregados
     const tecnicosFiltrados = tecnicosProcessados.filter(tecnico => {
         const matchesUsuario = tecnico.nome.toLowerCase().includes(valorFiltroUsuario) || 
                                tecnico.login.toLowerCase().includes(valorFiltroUsuario);
@@ -567,11 +547,14 @@ function renderizarTabela() {
     });
 
     if (tecnicosFiltrados.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #94a3b8; padding: 20px;">Nenhum técnico localizado.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #94a3b8; padding: 20px;">Nenhum técnico localizado com os filtros aplicados.</td></tr>';
         return;
     }
 
     tecnicosFiltrados.forEach((tecnico) => {
+        // Localiza a referência na lista original
+        const indiceOriginal = listaTecnicos.findIndex(t => t.login === tecnico.login);
+        
         const tr = document.createElement('tr');
         const statusBadge = tecnico.status === 'ATIVO' 
             ? `<span class="badge badge-ativo">LIBERADO</span>` 
@@ -579,18 +562,18 @@ function renderizarTabela() {
 
         tr.innerHTML = `
             <td>
-                <span style="color: #38bdf8; cursor: pointer; text-decoration: underline; font-weight: bold;" onclick="abrirHistoricoTecnico('${tecnico.login}')">
+                <span style="color: #38bdf8; cursor: pointer; text-decoration: underline; font-weight: bold;" onclick="abrirHistoricoTecnico(${indiceOriginal})">
                     ${tecnico.nome}
-                </span>
+                </span> [1]
             </td>
-            <td style="color: #cbd5e1; font-weight: bold;">${tecnico.login}</td>
+            <td style="color: #94a3b8;">${tecnico.login}</td>
             <td>${tecnico.empresa}</td>
             <td><span style="color: ${tecnico.cidade === 'TODAS' ? '#f59e0b' : 'white'}; font-weight: bold;">${tecnico.cidade}</span></td>
             <td>${statusBadge}</td>
             <td style="text-align: center;" class="contador text-produtivo">${tecnico.prodDinamico}</td>
             <td style="text-align: center;" class="contador text-improdutivo">${tecnico.improdDinamico}</td>
             <td style="text-align: center;">
-                <button class="btn-warning" onclick="abrirConfiguracao('${tecnico.login}')">Configurar ⚙️</button>
+                <button class="btn-warning" onclick="abrirConfiguracao(${indiceOriginal})">Configurar ⚙️</button>
             </td>
         `;
         tbody.appendChild(tr);
@@ -606,11 +589,17 @@ async function adicionarTecnico(event) {
     btnSubmit.textContent = "SALVANDO NO AZURE...";
 
     const nome = document.getElementById('cad-nome').value.trim();
-    const login = document.getElementById('cad-login').value.trim().toLowerCase();
+    const login = document.getElementById('cad-login').value.trim();
     const empresa = document.getElementById('cad-empresa').value.trim();
     const cidade = document.getElementById('cad-cidade').value.trim();
 
-    const payload = { nome, login, empresa, cidade, status: "ATIVO" };
+    const payload = {
+        nome: nome,
+        login: login,
+        empresa: empresa,
+        cidade: cidade,
+        status: "ATIVO"
+    };
 
     try {
         const response = await fetch('/api/gerenciarTecnicos', {
@@ -620,35 +609,146 @@ async function adicionarTecnico(event) {
         });
 
         if (response.ok) {
-            alert(`Técnico registrado com sucesso!`);
+            alert(`Acesso do técnico ${nome} registrado com sucesso no banco de dados!`);
             document.getElementById('form-cadastro').reset();
             toggleCadastro();
-            await carregarDados();
+            await carregarDados(); // Recarrega para persistir visualmente
         } else {
-            const erro = await obterMensagemErro(response, "Ocorreu um erro no servidor durante o cadastro.");
-            alert("Erro ao cadastrar técnico: " + erro);
+            const err = await response.json();
+            alert("Erro ao salvar técnico no Azure: " + (err.error || "Erro desconhecido"));
         }
     } catch (e) {
-        console.error("Falha ao salvar técnico:", e);
-        alert("Falha de rede ou de requisição. Verifique o console do navegador.");
+        console.error(e);
+        alert("Falha de rede ao conectar com o serviço.");
     } finally {
         btnSubmit.disabled = false;
         btnSubmit.textContent = "CADASTRAR E AUTORIZAR USUÁRIO";
     }
 }
 
-// --- CONFIGURAÇÃO ---
-function abrirConfiguracao(login) {
-    const tecnico = listaTecnicos.find(t => (t.login || '').toLowerCase() === login.toLowerCase());
-    if (!tecnico) return;
+// --- MODAL DE HISTÓRICO INDIVIDUAL DO TÉCNICO [1] ---
+function abrirHistoricoTecnico(index) {
+    const tecnico = listaTecnicos[index];
+    tecnicoAtivoLogin = tecnico.login;
+    filtroHistoricoAtivo = "TODOS"; 
 
+    document.getElementById('historico-titulo-tecnico').textContent = `📋 Atendimentos de ${tecnico.nome}`;
+    
+    atualizarBotoesFiltroHistorico();
+    renderizarHistoricoCardList();
+
+    document.getElementById('modal-historico').style.display = 'flex';
+}
+
+// --- FILTRO DE HISTÓRICO INTERNO ---
+function filtrarHistorico(status) {
+    filtroHistoricoAtivo = status;
+    atualizarBotoesFiltroHistorico();
+    renderizarHistoricoCardList();
+}
+
+// --- ATUALIZA A CLASSE VISUAL DOS BOTÕES DO MODAL ---
+function atualizarBotoesFiltroHistorico() {
+    const btnTodos = document.getElementById('btn-filtro-hist-todos');
+    const btnProd = document.getElementById('btn-filtro-hist-prod');
+    const btnImprod = document.getElementById('btn-filtro-hist-improd');
+
+    btnTodos.className = "btn-secondary";
+    btnProd.className = "btn-secondary";
+    btnImprod.className = "btn-secondary";
+
+    if (filtroHistoricoAtivo === 'TODOS') btnTodos.className = "btn-primary";
+    else if (filtroHistoricoAtivo === 'PRODUTIVO') btnProd.className = "btn-success";
+    else if (filtroHistoricoAtivo === 'IMPRODUTIVO') btnImprod.className = "btn-danger";
+}
+
+// --- DESENHA A LISTA DE CARDS DE ACORDO COM FILTRO E DATA ATIVOS ---
+function renderizarHistoricoCardList() {
+    const containerCards = document.getElementById('historico-container-cards');
+    containerCards.innerHTML = "";
+
+    // Filtra atendimentos do técnico selecionado [1]
+    let atendimentosFiltrados = listaAtendimentos.filter(a => a.tecnicoLogin === tecnicoAtivoLogin);
+
+    // Se houver filtro secundário de status no modal, aplica
+    if (filtroHistoricoAtivo !== 'TODOS') {
+        atendimentosFiltrados = atendimentosFiltrados.filter(a => a.status === filtroHistoricoAtivo);
+    }
+
+    if (atendimentosFiltrados.length === 0) {
+        containerCards.innerHTML = `<div style="text-align: center; color: #94a3b8; padding: 25px; font-size: 13px;">Nenhum atendimento <strong>${filtroHistoricoAtivo === 'TODOS' ? '' : filtroHistoricoAtivo.toLowerCase()}</strong> localizado para este período de busca.</div>`;
+        return;
+    }
+
+    atendimentosFiltrados.forEach(atend => {
+        const card = document.createElement('div');
+        card.className = "historico-card";
+
+        const tagStatusColor = atend.status === 'PRODUTIVO' ? '#4ade80' : '#f87171';
+        const dataObjeto = new Date(atend.data);
+        const dataFormatada = dataObjeto.toLocaleString('pt-BR');
+
+        let campoEquipamentoHTML = "";
+        if (atend.status === "PRODUTIVO") {
+            campoEquipamentoHTML = `<div><strong>Equipamento Retirado (MAC):</strong> <span class="mac-texto">${atend.mac}</span></div>`;
+        } else {
+            campoEquipamentoHTML = `<div><span style="color: #94a3b8; font-style: italic;">Nenhum equipamento foi recolhido nesta visita.</span></div>`;
+        }
+
+        let fotosHTML = "";
+        if (atend.fotos && atend.fotos.length > 0) {
+            atend.fotos.forEach(fotoSrc => {
+                fotosHTML += `<img src="${fotoSrc}" class="foto-atendimento" onclick="ampliarImagem('${fotoSrc}')" title="Clique para ampliar">`;
+            });
+        } else {
+            fotosHTML = `<span style="font-size: 12px; color: #64748b; font-style: italic;">Sem evidências fotográficas anexadas.</span>`;
+        }
+
+        card.innerHTML = `
+            <!-- Coluna da Esquerda (Dados textuais) [2] -->
+            <div class="historico-info">
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #334155; padding-bottom: 3px; margin-bottom: 8px;">
+                    <span style="font-weight: bold; color: #38bdf8;">Contrato: ${atend.contrato}</span>
+                    <span style="color: ${tagStatusColor}; font-weight: bold; font-size: 11px;">${atend.status}</span>
+                </div>
+                <strong>Cidade:</strong> ${atend.cidade}<br>
+                <strong>Data/Hora:</strong> ${dataFormatada}<br>
+                <strong>Tipo Desconexão:</strong> ${atend.tipoDesconexao}<br>
+                <div style="margin-top: 8px;">
+                    ${campoEquipamentoHTML}
+                </div>
+            </div>
+
+            <!-- Coluna da Direita (Galeria de evidências) [2] -->
+            <div class="evidencias-coluna">
+                <span style="font-size: 11px; font-weight: bold; color: #94a3b8; display: block; border-bottom: 1px dashed #334155; padding-bottom: 3px; margin-bottom: 5px;">🖼️ Evidências Anexas</span>
+                <div class="evidencias-grid">
+                    ${fotosHTML}
+                </div>
+            </div>
+        `;
+        containerCards.appendChild(card);
+    });
+}
+
+// --- DETALHADOR DE EXPANSÃO DE IMAGENS ---
+function ampliarImagem(src) {
+    document.getElementById('img-ampliada').src = src;
+    document.getElementById('modal-imagem-expandida').style.display = 'flex';
+}
+
+// --- CONFIGURAÇÃO (MODAL DE USUÁRIO) ---
+function abrirConfiguracao(index) {
+    const tecnico = listaTecnicos[index];
+    
     document.getElementById('edit-login-hidden').value = tecnico.login;
     document.getElementById('edit-nome').value = tecnico.nome;
     document.getElementById('edit-empresa').value = tecnico.empresa;
     document.getElementById('edit-cidade').value = tecnico.cidade;
     document.getElementById('edit-status').value = tecnico.status;
 
-    document.getElementById('modal-subtitulo').innerHTML = `Modificando permissões para o login: <strong>${tecnico.login}</strong>`;
+    document.getElementById('modal-subtitulo').innerHTML = `Modificando permissões para o login único: <strong>${tecnico.login}</strong>`;
+    
     document.getElementById('modal-configuracao').style.display = 'flex';
 }
 
@@ -656,10 +756,11 @@ function fecharModal(idModal) {
     document.getElementById(idModal).style.display = 'none';
 }
 
-// --- SALVAR EDICÃO ---
+// --- SALVAR EDIÇÕES DE TÉCNICO ---
 async function salvarAlteracoes() {
     const btnSalvar = document.getElementById('btn-salvar-modal');
     btnSalvar.disabled = true;
+    btnSalvar.textContent = "SALVANDO...";
 
     const login = document.getElementById('edit-login-hidden').value;
     const nome = document.getElementById('edit-nome').value.trim();
@@ -677,204 +778,60 @@ async function salvarAlteracoes() {
         });
 
         if (response.ok) {
-            alert("Modificações aplicadas!");
+            alert("Alterações atualizadas com sucesso no Azure!");
             fecharModal('modal-configuracao');
             await carregarDados();
         } else {
-            const erro = await obterMensagemErro(response, "Não foi possível aplicar as alterações.");
-            alert("Falha ao atualizar dados: " + erro);
+            const err = await response.json();
+            alert("Erro ao atualizar dados: " + (err.error || "Erro desconhecido"));
         }
     } catch (e) {
         console.error(e);
-        alert("Falha de rede ao tentar aplicar modificações.");
+        alert("Erro de rede ao salvar alterações.");
     } finally {
         btnSalvar.disabled = false;
+        btnSalvar.textContent = "SALVAR ALTERAÇÕES";
     }
 }
 
-// --- REMOVER TÉCNICO ---
+// --- REMOVER TÉCNICO PERMANENTEMENTE ---
 async function confirmarExclusao() {
     const login = document.getElementById('edit-login-hidden').value;
     const nome = document.getElementById('edit-nome').value;
 
-    if (confirm(`Deseja revogar permanentemente o acesso de ${nome}?`)) {
+    const confirmacao = confirm(`Deseja realmente remover o acesso e apagar permanentemente o técnico ${nome} (${login})?`);
+    if (confirmacao) {
         const btnExcluir = document.getElementById('btn-excluir-modal');
         btnExcluir.disabled = true;
+        btnExcluir.textContent = "EXCLUINDO...";
 
         try {
-            const response = await fetch(`/api/gerenciarTecnicos?login=${login}`, { method: 'DELETE' });
+            const response = await fetch(`/api/gerenciarTecnicos?login=${login}`, {
+                method: 'DELETE'
+            });
+
             if (response.ok) {
-                alert("Acesso revogado.");
+                alert("Acesso removido com sucesso no banco de dados.");
                 fecharModal('modal-configuracao');
                 await carregarDados();
             } else {
-                const erro = await obterMensagemErro(response, "Não foi possível revogar o acesso do usuário.");
-                alert("Falha ao excluir técnico: " + erro);
+                const err = await response.json();
+                alert("Erro ao remover registro: " + (err.error || "Erro desconhecido"));
             }
         } catch (e) {
             console.error(e);
-            alert("Erro de conexão ao solicitar exclusão.");
+            alert("Erro de rede ao excluir registro.");
         } finally {
             btnExcluir.disabled = false;
+            btnExcluir.textContent = "EXCLUIR USUÁRIO";
         }
     }
 }
 
-// --- HISTÓRICO INDIVIDUAL ---
-function abrirHistoricoTecnico(login) {
-    const tecnico = listaTecnicos.find(t => (t.login || '').toLowerCase() === login.toLowerCase());
-    if (!tecnico) return;
-
-    tecnicoAtivoLogin = login;
-    filtroHistoricoAtivo = "TODOS"; 
-
-    document.getElementById('historico-titulo-tecnico').textContent = `📋 Atendimentos de ${tecnico.nome}`;
-    
-    atualizarBotoesFiltroHistorico();
-    renderizarHistoricoCardList();
-
-    document.getElementById('modal-historico').style.display = 'flex';
-}
-
-function filtrarHistorico(status) {
-    filtroHistoricoAtivo = status;
-    atualizarBotoesFiltroHistorico();
-    renderizarHistoricoCardList();
-}
-
-function atualizarBotoesFiltroHistorico() {
-    const btnTodos = document.getElementById('btn-filtro-hist-todos');
-    const btnProd = document.getElementById('btn-filtro-hist-prod');
-    const btnImprod = document.getElementById('btn-filtro-hist-improd');
-
-    btnTodos.className = "btn-secondary";
-    btnProd.className = "btn-secondary";
-    btnImprod.className = "btn-secondary";
-
-    if (filtroHistoricoAtivo === 'TODOS') btnTodos.className = "btn-primary";
-    else if (filtroHistoricoAtivo === 'PRODUTIVO') btnProd.className = "btn-success";
-    else if (filtroHistoricoAtivo === 'IMPRODUTIVO') btnImprod.className = "btn-danger";
-}
-
-function renderizarHistoricoCardList() {
-    const containerCards = document.getElementById('historico-container-cards');
-    containerCards.innerHTML = "";
-
-    const dataInicioVal = document.getElementById('filtro-data-inicio').value;
-    const dataFimVal = document.getElementById('filtro-data-fim').value;
-
-    let dateInicio = dataInicioVal ? new Date(dataInicioVal + "T00:00:00Z") : null;
-    let dateFim = dataFimVal ? new Date(dataFimVal + "T23:59:59Z") : null;
-
-    let atendimentosFiltrados = listaAtendimentos.filter(a => (a.tecnicoLogin || '').toLowerCase() === tecnicoAtivoLogin.toLowerCase());
-
-    atendimentosFiltrados = atendimentosFiltrados.filter(a => {
-        const dataAtend = new Date(a.data);
-        if (dateInicio && dataAtend < dateInicio) return false;
-        if (dateFim && dataAtend > dateFim) return false;
-        return true;
-    });
-
-    if (filtroHistoricoAtivo !== 'TODOS') {
-        atendimentosFiltrados = atendimentosFiltrados.filter(a => a.status === filtroHistoricoAtivo);
-    }
-
-    if (atendimentosFiltrados.length === 0) {
-        containerCards.innerHTML = `<div style="text-align: center; color: #94a3b8; padding: 25px; font-size: 13px;">Nenhum atendimento localizado para este técnico neste período.</div>`;
-        return;
-    }
-
-    atendimentosFiltrados.forEach(atend => {
-        const card = document.createElement('div');
-        card.className = "historico-card";
-
-        const tagStatusColor = atend.status === 'PRODUTIVO' ? '#4ade80' : '#f87171';
-        const dataFormatada = atend.data ? new Date(atend.data).toLocaleString('pt-BR') : 'N/D';
-
-        let campoEquipamentoHTML = "";
-        let btnReverterHTML = "";
-
-        if (atend.status === "PRODUTIVO") {
-            campoEquipamentoHTML = `<div><strong>Equipamento Retirado (MAC):</strong> <span class="mac-texto">${atend.mac || 'N/D'}</span></div>`;
-        } else {
-            campoEquipamentoHTML = `<div><span style="color: #94a3b8; font-style: italic;">Nenhum equipamento foi recolhido nesta visita.</span></div>`;
-            
-            btnReverterHTML = `
-                <button type="button" class="btn-warning" style="margin-top:10px; font-size:11px; padding:6px 12px; width:100%; text-align:center;" onclick="reverterBaixaGerencial('${atend.contrato}', '${atend.tecnicoLogin}')">
-                    🔄 REVERTER BAIXA PARA ATIVA
-                </button>
-            `;
-        }
-
-        let fotosHTML = "";
-        if (atend.fotos && atend.fotos.length > 0) {
-            atend.fotos.forEach(fotoSrc => {
-                if (fotoSrc) {
-                    fotosHTML += `<img src="${fotoSrc}" class="foto-atendimento" onclick="ampliarImagem('${fotoSrc}')" title="Clique para ampliar">`;
-                }
-            });
-        }
-        if (!fotosHTML) {
-            fotosHTML = `<span style="font-size: 11px; color: #64748b; font-style: italic;">Sem imagens.</span>`;
-        }
-
-        card.innerHTML = `
-            <!-- Coluna da Esquerda (Dados textuais) -->
-            <div class="historico-info">
-                <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #334155; padding-bottom: 3px; margin-bottom: 8px;">
-                    <span style="font-weight: bold; color: #38bdf8;">Contrato: ${atend.contrato || 'N/D'}</span>
-                    <span style="color: ${tagStatusColor}; font-weight: bold; font-size: 11px;">${atend.status}</span>
-                </div>
-                <strong>Cidade:</strong> ${atend.cidade || 'N/D'}<br>
-                <strong>Data/Hora:</strong> ${dataFormatada}<br>
-                <strong>Tipo Desconexão:</strong> ${atend.tipoDesconexao || 'N/D'}<br>
-                <div style="margin-top: 8px;">
-                    ${campoEquipamentoHTML}
-                </div>
-                ${btnReverterHTML}
-            </div>
-
-            <!-- Coluna da Direita (Galeria de evidências) -->
-            <div class="evidencias-coluna">
-                <span style="font-size: 11px; font-weight: bold; color: #94a3b8; display: block; border-bottom: 1px dashed #334155; padding-bottom: 3px; margin-bottom: 5px;">🖼️ Evidências Anexas</span>
-                <div class="evidencias-grid">
-                    ${fotosHTML}
-                </div>
-            </div>
-        `;
-        containerCards.appendChild(card);
-    });
-}
-
-// --- ADMIN: ENVIAR REVERSÃO AO BANCO ---
-async function reverterBaixaGerencial(contrato, tecnico) {
-    if (!confirm(`Deseja de fato reverter a baixa improdutiva do contrato ${contrato}? O histórico será removido e o contrato retornará para a fila de trabalho do técnico.`)) {
-        return;
-    }
-
-    try {
-        const response = await fetch('/api/reverterAtendimento', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contrato, tecnico })
-        });
-
-        if (response.ok) {
-            alert("Visita revertida com sucesso no banco de dados!");
-            await carregarDados(); 
-            renderizarHistoricoCardList();
-        } else {
-            const erro = await obterMensagemErro(response, "Ocorreu um erro ao processar o estorno.");
-            alert("Erro na reversão: " + erro);
-        }
-    } catch (e) {
-        alert("Falha de rede ao tentar processar a reversão.");
-    }
-}
-
-function ampliarImagem(src) {
-    document.getElementById('img-ampliada').src = src;
-    document.getElementById('modal-imagem-expandida').style.display = 'flex';
-}
-
-window.on
+// Inicializa a tabela e os seletores ao carregar a página
+window.onload = () => {
+    carregarDados();
+};
+</script>
+</body>
+</html>
