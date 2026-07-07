@@ -1,9 +1,6 @@
 const { app } = require('@azure/functions');
 const { TableClient } = require('@azure/data-tables');
 
-// =========================================================================
-// --- 1. VALIDAR ACESSO DO TÉCNICO (Responsável por liberar o login) ---
-// =========================================================================
 app.http('validarTecnico', {
     methods: ['POST'],
     authLevel: 'anonymous',
@@ -18,13 +15,23 @@ app.http('validarTecnico', {
 
             const loginLower = login.trim().toLowerCase();
             const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING || process.env.AzureWebJobsStorage;
+            
+            if (!connectionString) {
+                return { 
+                    status: 500, 
+                    jsonBody: { error: "A variável de conexão 'AZURE_STORAGE_CONNECTION_STRING' não está definida no painel de configurações (Configuration) do Azure." } 
+                };
+            }
+
             const tableClient = TableClient.fromConnectionString(connectionString, 'TecnicosAutorizados');
 
             try {
-                // Busca o técnico com a estrutura exata gravada pelo painel administrativo
+                await tableClient.createTable();
+            } catch (e) {}
+
+            try {
                 const entity = await tableClient.getEntity('TECNICOS', loginLower);
 
-                // Retorna no formato esperado pelo painel de rotas do técnico
                 return { 
                     status: 200, 
                     jsonBody: { 
@@ -35,7 +42,6 @@ app.http('validarTecnico', {
 
             } catch (err) {
                 if (err.statusCode === 404) {
-                    // Retorna como não cadastrado para que o app exiba o aviso correto
                     return { status: 200, jsonBody: { status: 'NAO_CADASTRADO' } };
                 }
                 throw err;
