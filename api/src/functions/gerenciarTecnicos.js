@@ -18,11 +18,11 @@ app.http('gerenciarTecnicos', {
                 const lista = [];
                 for await (const entity of entities) {
                     lista.push({
-                        nome: entity.Nome,
-                        login: entity.RowKey, // O RowKey armazena o login único
-                        empresa: entity.Empresa,
-                        cidade: entity.CidadeAtuacao,
-                        status: entity.Status
+                        nome: entity.Nome || 'N/D',
+                        login: entity.rowKey, // Corrigido para "rowKey" minúsculo (Padrão SDK Azure)
+                        empresa: entity.Empresa || 'N/D',
+                        cidade: entity.CidadeAtuacao || 'TODAS',
+                        status: entity.Status || 'ATIVO'
                     });
                 }
                 return { status: 200, jsonBody: lista };
@@ -39,15 +39,14 @@ app.http('gerenciarTecnicos', {
                 const loginLower = data.login.trim().toLowerCase();
 
                 const entidadeTecnico = {
-                    partitionKey: 'TECNICOS',
-                    rowKey: loginLower,
+                    partitionKey: 'TECNICOS', // partitionKey minúsculo
+                    rowKey: loginLower,       // rowKey minúsculo
                     Nome: data.nome.trim().toUpperCase(),
                     Empresa: data.empresa.trim().toUpperCase(),
                     CidadeAtuacao: data.cidade.trim().toUpperCase(),
                     Status: data.status || 'ATIVO'
                 };
 
-                // upsertEntity cria se não existir ou substitui se já existir
                 await tableClient.upsertEntity(entidadeTecnico, "Replace");
 
                 return { status: 200, jsonBody: { success: true, message: "Técnico salvo com sucesso." } };
