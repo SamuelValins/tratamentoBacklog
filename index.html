@@ -168,9 +168,25 @@ button {
 </head>
 <body>
 
+<!-- Tela de Bloqueio/Login Integrada ao Azure [2] -->
+<div id="login-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0f172a; z-index: 20000; display: flex; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box;">
+    <div class="card" style="width: 100%; max-width: 400px; padding: 30px; text-align: center; border: 1px solid #334155;">
+        <h2 style="color: #38bdf8; margin-top: 0;">🚗 Claro Retirada</h2>
+        <p style="font-size: 13px; color: #94a3b8; margin-bottom: 20px;">Insira seu login autorizado para gerenciar suas rotas de trabalho.</p>
+        
+        <label style="text-align: left;">Login do Técnico</label>
+        <input type="text" id="login-usuario" placeholder="DIGITE SEU LOGIN" style="margin-bottom: 20px; text-align: center;" oninput="this.value = this.value.toLowerCase().trim()">
+        
+        <button type="button" id="btn-login-entrar" class="btn-success" onclick="efetuarLogin()">ENTRAR NO SISTEMA</button>
+    </div>
+</div>
+
 <div class="header">
     <span>🚗 Rota de Retirada</span>
-    <button id="btn-historico" class="btn-nav">HISTÓRICO 📋</button>
+    <div style="display: flex; gap: 8px;">
+        <button id="btn-historico" class="btn-nav">HISTÓRICO 📋</button>
+        <button id="btn-logout" class="btn-nav" style="background: #ef4444;" onclick="efetuarLogout()">SAIR 🚪</button>
+    </div>
 </div>
 
 <div class="container">
@@ -179,7 +195,7 @@ button {
         <h2>Painel de Configuração</h2>
         
         <label>Login do Técnico</label>
-        <input type="text" id="input-tecnico" placeholder="DIGITE SEU LOGIN">
+        <input type="text" id="input-tecnico" placeholder="LOGIN" disabled style="background: #1e293b; color: #94a3b8; cursor: not-allowed;">
         
         <label>Cidade de Atuação</label>
         <input type="text" id="input-cidade" placeholder="DIGITE A CIDADE" oninput="this.value = normalizarInputCidade(this.value)">
@@ -271,6 +287,96 @@ let todosContratosOrdenados = [];
 let indexExibicaoAtual = 0;
 let limiteExibicao = 30; // Valor dinâmico baseado no select-quantidade
 let contratosCarregadosTemporarios = []; // Armazena os contratos carregados da busca original
+
+// --- GESTÃO DE LOGIN E AUTENTICAÇÃO ---
+async function validarAcesso(login, isAutoLogin = false) {
+    const btnEntrar = document.getElementById('btn-login-entrar');
+    if (btnEntrar) {
+        btnEntrar.disabled = true;
+        btnEntrar.textContent = "VALIDANDO CREDENCIAIS...";
+    }
+
+    try {
+        const response = await fetch('/api/validarTecnico', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ login: login })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            
+            if (data.status === 'ATIVO') {
+                // Guarda sessão
+                localStorage.setItem('login_tecnico', login);
+                document.getElementById('input-tecnico').value = login;
+                
+                // Aplica regra de restrição territorial de cidade [2]
+                const inputCidade = document.getElementById('input-cidade');
+                if (data.cidadeAtuacao && data.cidadeAtuacao !== 'TODAS') {
+                    inputCidade.value = data.cidadeAtuacao;
+                    inputCidade.disabled = true; // Trava o campo para evitar desvios [2]
+                    inputCidade.style.background = '#1e293b';
+                    inputCidade.style.color = '#94a3b8';
+                    inputCidade.style.cursor = 'not-allowed';
+                } else {
+                    // Libera campo para busca livre caso tenha acesso total [2]
+                    inputCidade.disabled = false;
+                    inputCidade.style.background = '#0f172a';
+                    inputCidade.style.color = 'white';
+                    inputCidade.style.cursor = 'text';
+                    if (!inputCidade.value) inputCidade.value = "";
+                }
+
+                exibirLogin(false);
+            } else if (data.status === 'BLOQUEADO') {
+                alert("Seu acesso foi bloqueado pelo administrador.");
+                efetuarLogout();
+            } else {
+                alert("Usuário não cadastrado.");
+                efetuarLogout();
+            }
+        } else {
+            alert("Erro ao conectar com o serviço de validação.");
+            if (isAutoLogin) exibirLogin(true);
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Falha de rede ao tentar autenticar.");
+        if (isAutoLogin) exibirLogin(true);
+    } finally {
+        if (btnEntrar) {
+            btnEntrar.disabled = false;
+            btnEntrar.textContent = "ENTRAR NO SISTEMA";
+        }
+    }
+}
+
+function exibirLogin(mostrar) {
+    const overlay = document.getElementById('login-overlay');
+    if (mostrar) {
+        overlay.style.display = 'flex';
+    } else {
+        overlay.style.display = 'none';
+    }
+}
+
+function efetuarLogin() {
+    const login = document.getElementById('login-usuario').value.trim().toLowerCase();
+    if (!login) {
+        alert("Por favor, digite seu login único.");
+        return;
+    }
+    validarAcesso(login, false);
+}
+
+function efetuarLogout() {
+    localStorage.removeItem('login_tecnico');
+    document.getElementById('login-usuario').value = "";
+    document.getElementById('input-tecnico').value = "";
+    document.getElementById('input-cidade').value = "";
+    exibirLogin(true);
+}
 
 // --- GEOLOCALIZAÇÃO ---
 function obterGeolocalizacao() {
@@ -1255,7 +1361,10 @@ function iniciarAtendimento(contratoId) {
 window.addEventListener('load', async () => {
     const loginSalvo = localStorage.getItem('login_tecnico');
     if (loginSalvo) {
-        document.getElementById('input-tecnico').value = loginSalvo;
+        // Tenta revalidar automaticamente de forma transparente [2]
+        await validarAcesso(loginSalvo, true);
+    } else {
+        exibirLogin(true);
     }
 });
 </script>
