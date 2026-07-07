@@ -294,7 +294,7 @@ tr:hover {
     <!-- Tabela de Usuários Cadastrados -->
     <div class="card">
         <h2 style="margin-top: 0; color: #38bdf8; font-size: 18px;">📋 Usuários Autorizados</h2>
-        <p style="font-size: 12px; color: #94a3b8; margin-bottom: 15px;">Clique no <strong>nome do técnico</strong> para ver o histórico detalhado de atendimentos dele [1].</p>
+        <p style="font-size: 12px; color: #94a3b8; margin-bottom: 15px;">Clique no <strong>nome do técnico</strong> para ver o histórico detalhado de atendimentos dele.</p>
         
         <div class="table-container">
             <table>
@@ -349,14 +349,14 @@ tr:hover {
     </div>
 </div>
 
-<!-- Modal de Histórico de Atendimentos do Técnico [1] -->
+<!-- Modal de Histórico de Atendimentos do Técnico -->
 <div id="modal-historico" class="modal-overlay">
     <div class="modal-content" style="max-width: 700px; width: 95%;">
         <h3 style="margin-top: 0; color: #38bdf8; display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
             <span id="historico-titulo-tecnico">📋 Histórico de Atendimentos</span>
             <button class="btn-danger" style="padding: 6px 12px; font-size: 12px;" onclick="fecharModal('modal-historico')">✕ FECHAR</button>
         </h3>
-        <p style="font-size: 12px; color: #94a3b8; margin-bottom: 15px;">Listagem lateral: Informações à esquerda e múltiplas evidências à direita [2].</p>
+        <p style="font-size: 12px; color: #94a3b8; margin-bottom: 15px;">Listagem lateral: Informações à esquerda e múltiplas evidências à direita.</p>
         
         <!-- Botões de Filtragem Interna de Histórico -->
         <div style="display: flex; gap: 8px; margin-bottom: 15px;">
@@ -389,6 +389,27 @@ let mainFiltroStatus = "TODOS";
 let tecnicoAtivoLogin = "";
 let filtroHistoricoAtivo = "TODOS";
 
+// --- TRATAMENTO SEGURO DE ERROS DO SERVIDOR (Não esconde o erro original) ---
+async function obterMensagemErro(response, mensagemPadrao) {
+    let errorMsg = mensagemPadrao;
+    try {
+        const err = await response.json();
+        errorMsg = err.error || err.message || errorMsg;
+    } catch (parseError) {
+        try {
+            const rawText = await response.text();
+            if (rawText && rawText.length < 200) {
+                errorMsg = rawText;
+            } else {
+                errorMsg = `Código de Status: ${response.status} (${response.statusText})`;
+            }
+        } catch (e) {
+            errorMsg = `Código de Status: ${response.status}`;
+        }
+    }
+    return errorMsg;
+}
+
 // --- CARREGADOR INICIAL ---
 async function carregarDados() {
     const tbody = document.getElementById('tabela-usuarios-corpo');
@@ -398,7 +419,6 @@ async function carregarDados() {
         const responseTecnicos = await fetch('/api/gerenciarTecnicos');
         if (responseTecnicos.ok) {
             const rawData = await responseTecnicos.json();
-            // Normaliza o array de forma resiliente
             listaTecnicos = rawData.map(t => ({
                 nome: t.nome || t.Nome || 'N/D',
                 login: t.login || t.rowKey || t.RowKey || '',
@@ -406,16 +426,19 @@ async function carregarDados() {
                 cidade: t.cidade || t.CidadeAtuacao || 'TODAS',
                 status: t.status || t.Status || 'ATIVO'
             }));
+        } else {
+            const msg = await obterMensagemErro(responseTecnicos, "Não foi possível buscar a lista de técnicos.");
+            tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: #ef4444; padding: 20px;">Erro do Servidor: ${msg}</td></tr>`;
+            return;
         }
 
         await carregarHistoricoGeral();
-
         atualizarFiltroEmpresas();
         renderizarTabela();
 
     } catch (error) {
         console.error(error);
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #ef4444; padding: 20px;">Falha de conexão com o servidor Azure.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #ef4444; padding: 20px;">Falha ao comunicar com o servidor. Verifique suas conexões ou rotas de API.</td></tr>';
     }
 }
 
@@ -436,7 +459,7 @@ async function carregarHistoricoGeral() {
             listaAtendimentos = await response.json();
         }
     } catch (e) {
-        console.error(e);
+        console.error("Falha ao obter histórico geral:", e);
     }
 }
 
@@ -488,7 +511,6 @@ function atualizarFiltroEmpresas() {
     selectEmpresa.innerHTML = '<option value="TODAS">TODAS AS EMPRESAS</option>';
     empresasUnicas.sort().forEach(empresa => {
         const opt = document.createElement('option');
-        opt.value = Math.random().toString(); // Evita ID colisão
         opt.value = empresa;
         opt.textContent = empresa;
         selectEmpresa.appendChild(opt);
@@ -501,7 +523,7 @@ function atualizarFiltroEmpresas() {
     }
 }
 
-// --- RENDERIZADOR DA TABELA (CONECTADO E ROBUSTO) ---
+// --- RENDERIZADOR DA TABELA ---
 function renderizarTabela() {
     const tbody = document.getElementById('tabela-usuarios-corpo');
     tbody.innerHTML = "";
@@ -557,10 +579,9 @@ function renderizarTabela() {
 
         tr.innerHTML = `
             <td>
-                <!-- Correção Crítica: Chama abrindo exatamente pelo LOGIN (string única) e nunca por índice numérico -->
                 <span style="color: #38bdf8; cursor: pointer; text-decoration: underline; font-weight: bold;" onclick="abrirHistoricoTecnico('${tecnico.login}')">
                     ${tecnico.nome}
-                </span> [1]
+                </span>
             </td>
             <td style="color: #cbd5e1; font-weight: bold;">${tecnico.login}</td>
             <td>${tecnico.empresa}</td>
@@ -585,7 +606,7 @@ async function adicionarTecnico(event) {
     btnSubmit.textContent = "SALVANDO NO AZURE...";
 
     const nome = document.getElementById('cad-nome').value.trim();
-    const login = document.getElementById('cad-login').value.trim().toLowerCase(); // Salva estritamente em minúsculas
+    const login = document.getElementById('cad-login').value.trim().toLowerCase();
     const empresa = document.getElementById('cad-empresa').value.trim();
     const cidade = document.getElementById('cad-cidade').value.trim();
 
@@ -604,18 +625,19 @@ async function adicionarTecnico(event) {
             toggleCadastro();
             await carregarDados();
         } else {
-            const err = await response.json();
-            alert("Erro: " + (err.error || "Erro desconhecido"));
+            const erro = await obterMensagemErro(response, "Ocorreu um erro no servidor durante o cadastro.");
+            alert("Erro ao cadastrar técnico: " + erro);
         }
     } catch (e) {
-        alert("Falha de rede ao conectar com o Azure.");
+        console.error("Falha ao salvar técnico:", e);
+        alert("Falha de rede ou de requisição. Verifique o console do navegador.");
     } finally {
         btnSubmit.disabled = false;
         btnSubmit.textContent = "CADASTRAR E AUTORIZAR USUÁRIO";
     }
 }
 
-// --- CONFIGURAÇÃO (BUSCA RESILIENTE POR LOGIN) ---
+// --- CONFIGURAÇÃO ---
 function abrirConfiguracao(login) {
     const tecnico = listaTecnicos.find(t => (t.login || '').toLowerCase() === login.toLowerCase());
     if (!tecnico) return;
@@ -659,16 +681,18 @@ async function salvarAlteracoes() {
             fecharModal('modal-configuracao');
             await carregarDados();
         } else {
-            alert("Erro ao salvar.");
+            const erro = await obterMensagemErro(response, "Não foi possível aplicar as alterações.");
+            alert("Falha ao atualizar dados: " + erro);
         }
     } catch (e) {
-        alert("Falha de rede.");
+        console.error(e);
+        alert("Falha de rede ao tentar aplicar modificações.");
     } finally {
         btnSalvar.disabled = false;
     }
 }
 
-// --- REMOVER TÉCNICO (CORRIGIDO) ---
+// --- REMOVER TÉCNICO ---
 async function confirmarExclusao() {
     const login = document.getElementById('edit-login-hidden').value;
     const nome = document.getElementById('edit-nome').value;
@@ -684,17 +708,19 @@ async function confirmarExclusao() {
                 fecharModal('modal-configuracao');
                 await carregarDados();
             } else {
-                alert("Erro ao remover usuário do Azure.");
+                const erro = await obterMensagemErro(response, "Não foi possível revogar o acesso do usuário.");
+                alert("Falha ao excluir técnico: " + erro);
             }
         } catch (e) {
-            alert("Erro de conexão.");
+            console.error(e);
+            alert("Erro de conexão ao solicitar exclusão.");
         } finally {
             btnExcluir.disabled = false;
         }
     }
 }
 
-// --- HISTÓRICO INDIVIDUAL (CHAVE BASEADA NO LOGIN) ---
+// --- HISTÓRICO INDIVIDUAL ---
 function abrirHistoricoTecnico(login) {
     const tecnico = listaTecnicos.find(t => (t.login || '').toLowerCase() === login.toLowerCase());
     if (!tecnico) return;
@@ -793,7 +819,7 @@ function renderizarHistoricoCardList() {
         }
 
         card.innerHTML = `
-            <!-- Coluna da Esquerda (Dados textuais) [2] -->
+            <!-- Coluna da Esquerda (Dados textuais) -->
             <div class="historico-info">
                 <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #334155; padding-bottom: 3px; margin-bottom: 8px;">
                     <span style="font-weight: bold; color: #38bdf8;">Contrato: ${atend.contrato || 'N/D'}</span>
@@ -808,7 +834,7 @@ function renderizarHistoricoCardList() {
                 ${btnReverterHTML}
             </div>
 
-            <!-- Coluna da Direita (Galeria de evidências) [2] -->
+            <!-- Coluna da Direita (Galeria de evidências) -->
             <div class="evidencias-coluna">
                 <span style="font-size: 11px; font-weight: bold; color: #94a3b8; display: block; border-bottom: 1px dashed #334155; padding-bottom: 3px; margin-bottom: 5px;">🖼️ Evidências Anexas</span>
                 <div class="evidencias-grid">
@@ -835,13 +861,14 @@ async function reverterBaixaGerencial(contrato, tecnico) {
 
         if (response.ok) {
             alert("Visita revertida com sucesso no banco de dados!");
-            await carregarDados(); // Recarrega os contadores
+            await carregarDados(); 
             renderizarHistoricoCardList();
         } else {
-            alert("Erro ao processar reversão.");
+            const erro = await obterMensagemErro(response, "Ocorreu um erro ao processar o estorno.");
+            alert("Erro na reversão: " + erro);
         }
     } catch (e) {
-        alert("Falha de rede.");
+        alert("Falha de rede ao tentar processar a reversão.");
     }
 }
 
@@ -850,9 +877,4 @@ function ampliarImagem(src) {
     document.getElementById('modal-imagem-expandida').style.display = 'flex';
 }
 
-window.onload = () => {
-    carregarDados();
-};
-</script>
-</body>
-</html>
+window.on
