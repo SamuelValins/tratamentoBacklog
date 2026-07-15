@@ -89,6 +89,15 @@ app.http('obterContratos', {
                 const macString = entity.Mac || '';
                 const qtdEquip = macString ? macString.split('/').length : 1;
 
+                // Captura as coordenadas do Azure Table de forma robusta e realiza a conversão numérica
+                const latitudeFinal = (entity.latitude !== undefined && entity.latitude !== null) ? parseFloat(entity.latitude) : 
+                                     ((entity.lat !== undefined && entity.lat !== null) ? parseFloat(entity.lat) : 
+                                     ((entity.coordY !== undefined && entity.coordY !== null) ? parseFloat(entity.coordY) : null));
+
+                const longitudeFinal = (entity.longitude !== undefined && entity.longitude !== null) ? parseFloat(entity.longitude) : 
+                                      ((entity.lon !== undefined && entity.lon !== null) ? parseFloat(entity.lon) : 
+                                      ((entity.coordX !== undefined && entity.coordX !== null) ? parseFloat(entity.coordX) : null));
+
                 contratosFormatados.push({
                     contrato: entity.Contrato || entity.RowKey,
                     cidade: entity.Cidade,
@@ -103,8 +112,9 @@ app.http('obterContratos', {
                     modelo_equip: entity.ModeloEquip || entity.FamiliaEquip || 'N/D',
                     mac: entity.Mac || 'MAC não disponível para este equipamento', 
                     obs: entity.Obs || '',
-                    lat: null, 
-                    lon: null
+                    lat: latitudeFinal, 
+                    lon: longitudeFinal,
+                    partitionKey: entity.partitionKey || entity.PartitionKey || '' // Retorna a partição para facilitar futuras gravações
                 });
 
                 currentCount++;
