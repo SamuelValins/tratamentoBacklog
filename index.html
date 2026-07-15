@@ -263,14 +263,14 @@ button {
         
         <button id="btn-carregar" class="btn-primary">CARREGAR FILA E ORDENAR POR PROXIMIDADE</button>
         
-        <!-- Botão Dinâmico para abrir o Mapa do Backlog (Inicialmente oculto) -->
+        <!-- Botão Dinâmico para abrir o Mapa do Backlog -->
         <button id="btn-mapa-backlog" class="btn-primary" style="background: #8b5cf6; display: none;" onclick="abrirMapaBacklog()">MAPA GERAL DO BACKLOG 🗺️</button>
     </div>
 
     <!-- Container dinâmico para Alertas/Fallback do GPS -->
     <div id="alert-gps-global"></div>
 
-    <!-- Card de Seleção de Bairro (Filtro Duplicados / Variados) -->
+    <!-- Card de Seleção de Bairro -->
     <div class="card" id="card-bairro-selecao" style="display: none; background: #1e293b; border: 1px solid #f59e0b;">
         <h3 style="color: #f59e0b; margin-top: 0;">🧭 Filtro de Bairro Ativo</h3>
         <p id="bairro-detectado-info" style="font-size: 13px; color: #cbd5e1; line-height: 1.5;"></p>
@@ -454,13 +454,13 @@ function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// --- HIGIENIZADOR CIRÚRGICO DE ENDEREÇOS (PRESERVA NÚMEROS E REMOVE APENAS PARENTESES) ---
+// --- HIGIENIZADOR CIRÚRGICO DE ENDEREÇOS ---
 function limparEnderecoParaGeocodificacao(endereco) {
     if (!endereco) return "";
     let limpo = endereco.toUpperCase()
         .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove acentos
         
-        // 1. Remove qualquer texto explicativo/bairro entre parênteses (Ex: "(NUC RES E B GASPARINI)" -> "")
+        // 1. Remove qualquer texto explicativo/bairro entre parênteses
         .replace(/\s*\([^)]*\)/g, "")
         
         // 2. Remove apenas siglas de quadra e lote de forma limpa
@@ -468,7 +468,7 @@ function limparEnderecoParaGeocodificacao(endereco) {
         .replace(/\b(LT|LOTE)\s*\d*\b/gi, "")
         .replace(/\b(AP|APTO|APT|BL|BLOCO|FLAT|SOBRADO|FUNDO|ALTOS)\s*[A-Z0-9]?\b/gi, "")
         
-        // 3. Normaliza hifens órfãos seguidos do número do imóvel (Ex: " - 29" -> " 29")
+        // 3. Normaliza hifens órfãos seguidos do número do imóvel
         .replace(/\s*-\s*(\d+)/g, " $1")
         .replace(/\s*-\s*$/g, "") // Remove hífen órfão no final
         
@@ -490,7 +490,7 @@ function normalizarInputCidade(val) {
               .trim();
 }
 
-// --- NORMALIZADOR DE COMPARAÇÃO DE BAIRROS (IDENTIFICA JARDINS 1, JARDINS 2, JD...) ---
+// --- NORMALIZADOR DE COMPARAÇÃO DE BAIRROS ---
 function normalizarBairro(b) {
     if (!b) return "";
     return b.normalize("NFD")
@@ -503,7 +503,7 @@ function normalizarBairro(b) {
             .trim();
 }
 
-// --- REVERSE GEOCODING (IDENTIFICA O BAIRRO ATUAL PELO GPS) ---
+// --- REVERSE GEOCODING ---
 async function obterBairroTecnico(lat, lon) {
     try {
         const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`, {
@@ -528,13 +528,25 @@ function verificarSeEhCentroid(res) {
     return (classVal === "place" && (tipo === "city" || tipo === "town" || tipo === "municipality" || tipo === "state"));
 }
 
-// --- GEOCODIFICADOR COMPLETO COM AUTO-RETRY ---
+// --- GEOCODIFICADOR COMPLETO COM AUTO-SKIP E PERSISTÊNCIA EM SEGUNDO PLANO ---
 async function geocodificarFila(contratos) {
     const total = contratos.length;
     const btnCarregar = document.getElementById('btn-carregar');
     
     for (let i = 0; i < total; i++) {
         const item = contratos[i];
+        
+        // Se o banco de dados já retornou coordenadas válidas, pula o Nominatim
+        if (item.lat !== undefined && item.lat !== null && !isNaN(parseFloat(item.lat)) &&
+            item.lon !== undefined && item.lon !== null && !isNaN(parseFloat(item.lon)) &&
+            parseFloat(item.lat) !== 0) {
+            
+            item.lat = parseFloat(item.lat);
+            item.lon = parseFloat(item.lon);
+            item.geocodificadoComSucesso = true;
+            continue; // Pula para o próximo contrato imediatamente (carregamento instantâneo)
+        }
+
         btnCarregar.textContent = `MAPEANDO ENDEREÇOS: ${i + 1} de ${total}...`;
         
         const enderecoLimpo = limparEnderecoParaGeocodificacao(item.endereco);
@@ -551,9 +563,15 @@ async function geocodificarFila(contratos) {
                     const ehCentroid = verificarSeEhCentroid(res);
 
                     if (!ehCentroid) {
-                        item.lat = parseFloat(res.lat);
-                        item.lon = parseFloat(res.lon);
+                        const latitude = parseFloat(res.lat);
+                        const longitude = parseFloat(res.lon);
+                        
+                        item.lat = latitude;
+                        item.lon = longitude;
                         item.geocodificadoComSucesso = true;
+
+                        // Envia as coordenadas obtidas para salvar na tabela do Azure
+                        salvarCoordenadasNoBanco(item.contrato, item.PartitionKey || item.partitionKey || "", latitude, longitude);
                     } else {
                         item.lat = null;
                         item.lon = null;
@@ -565,6 +583,25 @@ async function geocodificarFila(contratos) {
             console.error("Erro ao geocodificar contrato: ", item.contrato, e);
         }
         await delay(150); 
+    }
+}
+
+// --- ENVIA AS COORDENADAS PARA O BACK-END SALVAR NA TABELA ---
+async function salvarCoordenadasNoBanco(contratoId, partitionKey, lat, lon) {
+    try {
+        await fetch('/api/atualizarCoordenadas', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contrato: contratoId,
+                partitionKey: partitionKey, // Importante para localizar a partição da data correta
+                latitude: lat,
+                longitude: lon
+            })
+        });
+        console.log(`Coordenadas persistidas no Azure para o contrato ${contratoId}`);
+    } catch (e) {
+        console.warn("Não foi possível salvar as coordenadas em segundo plano:", e);
     }
 }
 
@@ -592,7 +629,7 @@ function gerarMensagemWhatsapp(endereco, complemento, bairro, cidade, contrato) 
     return `Olá, tudo bem? Sou da central de apoio técnico da Claro. Gostaria de tratar a respeito da retirada de equipamentos no endereço: ${enderecoCompleto}. Poderia nos confirmar se este endereço está correto ou se houve alguma mudança? (Contrato: ${contrato}).`;
 }
 
-// --- ALGORITMO TSP SEQUENCIAL NEAREST-NEIGHBOR (CORRIGIDO E RESILIENTE) ---
+// --- ALGORITMO TSP SEQUENCIAL NEAREST-NEIGHBOR ---
 function ordenarFilaNearestNeighbor(contratos, startLat, startLon, limiteQtd) {
     if (!contratos || contratos.length === 0) return [];
     
@@ -667,7 +704,7 @@ function ordenarFilaNearestNeighbor(contratos, startLat, startLon, limiteQtd) {
         }
     }
 
-    // 4. Contratos que falharam na geocodificação são inseridos no final da fila,
+    // 4. Contratos que falharam na geocodificação são inseridos no final da fila
     if (naoMapeados.length > 0) {
         resultadoOrdenado.push(...naoMapeados);
     }
@@ -1280,7 +1317,7 @@ async function enviarAtendimentoFinal(contratoId) {
                 dataHora: new Date().toISOString(),
                 tecnico: tecnico,
                 codigo_baixa: statusAtivo === 'IMPRODUTIVO' ? payload.codigo_baixa : null,
-                observacao: statusAtivo === 'IMPRODUTIVO' ? payload.observacao_conclusao : "EQUIPAMENTO RETIRADO COM SUCESSO",
+                observacao: statusAtivo === 'IMPRODUTIVO' ? payload.observacao_conclusao : "EQUIPAMENTO RETIRADO WITH SUCCESS",
                 qtd_fotos: statusAtivo === 'PRODUTIVO' ? payload.imagens_etiqueta.length : 1
             };
             salvarNoHistoricoLocal(registroHistorico);
@@ -1412,7 +1449,7 @@ function iniciarAtendimento(contratoId) {
 // --- SISTEMA DE REVERSÃO NO PAINEL TÉCNICO ---
 // ==========================================
 
-// --- BUSCA OS MODELOS DO CONTRATO OU RETORNA VALORES DE FALLBACK ---
+// --- BUSCA OS MODELOS DO CONTRATO ---
 async function obterEquipamentosDoContrato(contratoId) {
     // 1. Tenta varrer localmente os contratos em memória na fila ativa do aparelho
     let contratoEncontrado = contratosCarregadosTemporarios.find(c => String(c.contrato) === String(contratoId)) || 
@@ -1438,7 +1475,7 @@ async function obterEquipamentosDoContrato(contratoId) {
         console.error("Erro ao pesquisar equipamentos adicionais:", e);
     }
 
-    // 3. Fallback genérico caso o contrato seja antigo ou não esteja na base ativa do dia
+    // 3. Fallback genérico
     return ["MODEM WIFI / MTA CLARO", "DECODER HD / 4K CLARO", "ONU FIBRA", "REPETIDOR WIFI", "OUTROS"];
 }
 
@@ -1515,7 +1552,7 @@ function renderizarFormularioReversao(contratoId) {
                 <button type="button" class="btn-status-choice ${statusAtivo === 'IMPRODUTIVO' ? 'active-improd' : ''}" style="padding: 8px; font-size:11px;" onclick="setReversaoStatus('${contratoId}', 'IMPRODUTIVO')">👎 IMPRODUTIVO</button>
             </div>
 
-                  ${subFormHTML}
+            ${subFormHTML}
 
             <div style="display: flex; gap: 8px; margin-top: 15px; justify-content: flex-end;">
                 <button type="button" class="btn-secondary" style="padding: 6px 12px; font-size: 11px; width:auto;" onclick="cancelarReversao('${contratoId}')">CANCELAR</button>
@@ -1735,7 +1772,7 @@ async function salvarReversaoFinal(contratoId) {
                 historicoLocal[itemIdx].status = statusAtivo;
                 historicoLocal[itemIdx].dataHora = payload.data_reversao;
                 historicoLocal[itemIdx].codigo_baixa = statusAtivo === 'IMPRODUTIVO' ? payload.codigo_baixa : null;
-                historicoLocal[itemIdx].observacao = statusAtivo === 'IMPRODUTIVO' ? payload.observacao_conclusao : "EQUIPAMENTO RETIRADO COM SUCESSO";
+                historicoLocal[itemIdx].observacao = statusAtivo === 'IMPRODUTIVO' ? payload.observacao_conclusao : "EQUIPAMENTO RETIRADO WITH SUCCESS";
                 historicoLocal[itemIdx].qtd_fotos = statusAtivo === 'PRODUTIVO' ? payload.fotos.length : 1;
                 
                 localStorage.setItem('historico_atendimentos', JSON.stringify(historicoLocal));
@@ -1757,7 +1794,7 @@ async function salvarReversaoFinal(contratoId) {
 // --- SISTEMA DO MAPA GERAL DO BACKLOG ---
 // ==========================================
 
-// --- ABRE O MODAL E INICIALIZA O LEAFLET ---
+// --- ABRE O MODAL AND INICIALIZA O LEAFLET ---
 function abrirMapaBacklog() {
     if (!todosContratosOrdenados || todosContratosOrdenados.length === 0) {
         alert("Por favor, carregue os contratos primeiro!");
@@ -1807,7 +1844,7 @@ function inicializarMapaLeaflet() {
 
     const bounds = [];
 
-    // 1. Adiciona marcador da localização atual do técnico (se disponível no GPS)
+    // 1. Adiciona marcador da localização atual do técnico
     if (localizacaoTecnico) {
         const userLat = localizacaoTecnico.latitude;
         const userLon = localizacaoTecnico.longitude;
@@ -1829,7 +1866,7 @@ function inicializarMapaLeaflet() {
         const cLon = parseFloat(c.lon);
         bounds.push([cLat, cLon]);
 
-        // Mapeia cor do ponto de acordo com a prioridade (Azul para Opção, Vermelho para Inadimplência)
+        // Mapeia cor do ponto de acordo com a prioridade
         const markerColor = c.tipo.includes('OPC') ? '#2563eb' : '#ef4444';
 
         const contractMarker = L.circleMarker([cLat, cLon], {
@@ -1840,7 +1877,6 @@ function inicializarMapaLeaflet() {
             weight: 2
         }).addTo(markersGroup);
 
-        // Caixa de texto explicativa ao clicar no ponto do mapa
         const popHTML = `
             <div style="color: #0f172a; font-family: sans-serif; font-size: 13px; min-width: 180px;">
                 <b style="color: #1e3a8a; display: block; border-bottom: 1px dashed #cbd5e1; padding-bottom: 3px; margin-bottom: 5px;">CONTRATO: ${c.contrato}</b>
@@ -1853,7 +1889,7 @@ function inicializarMapaLeaflet() {
         contractMarker.bindPopup(popHTML);
     });
 
-    // 3. Ajusta o enquadramento da câmera do mapa de forma automática para englobar todos os pontos
+    // 3. Ajusta o enquadramento da câmera do mapa de forma automática
     if (bounds.length > 0) {
         mapaBacklogInstance.fitBounds(bounds, { padding: [40, 40] });
     }
