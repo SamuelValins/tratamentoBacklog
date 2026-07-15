@@ -457,7 +457,7 @@ function delay(ms) {
 // --- HIGIENIZADOR CIRÚRGICO DE ENDEREÇOS ---
 function limparEnderecoParaGeocodificacao(endereco) {
     if (!endereco) return "";
-    let limpo = endereco.toUpperCase()
+    let limpo = address => address.toUpperCase()
         .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove acentos
         
         // 1. Remove qualquer texto explicativo/bairro entre parênteses
@@ -477,7 +477,7 @@ function limparEnderecoParaGeocodificacao(endereco) {
         .replace(/,\s*$/g, "")
         .replace(/\s+/g, " ")
         .trim();
-    return limpo;
+    return limpo(endereco);
 }
 
 // --- NORMALIZADOR DE ENTRADA DE CIDADE (SEM ACENTOS E MAIÚSCULAS) ---
@@ -536,13 +536,17 @@ async function geocodificarFila(contratos) {
     for (let i = 0; i < total; i++) {
         const item = contratos[i];
         
-        // Se o banco de dados já retornou coordenadas válidas, pula o Nominatim
-        if (item.lat !== undefined && item.lat !== null && !isNaN(parseFloat(item.lat)) &&
-            item.lon !== undefined && item.lon !== null && !isNaN(parseFloat(item.lon)) &&
-            parseFloat(item.lat) !== 0) {
+        // --- NOVO: Tenta capturar QUALQUER variação de propriedade de coordenada vinda do banco ---
+        const latExistente = item.lat || item.latitude || item.coordY;
+        const lonExistente = item.lon || item.longitude || item.coordX;
+
+        // Se o banco de dados já retornou coordenadas válidas de gravação anterior, pula o Nominatim
+        if (latExistente !== undefined && latExistente !== null && !isNaN(parseFloat(latExistente)) &&
+            lonExistente !== undefined && lonExistente !== null && !isNaN(parseFloat(lonExistente)) &&
+            parseFloat(latExistente) !== 0) {
             
-            item.lat = parseFloat(item.lat);
-            item.lon = parseFloat(item.lon);
+            item.lat = parseFloat(latExistente);
+            item.lon = parseFloat(lonExistente);
             item.geocodificadoComSucesso = true;
             continue; // Pula para o próximo contrato imediatamente (carregamento instantâneo)
         }
@@ -1088,7 +1092,7 @@ function renderizarContratos(contratos) {
 }
 
 // --- REDIRECIONAMENTO DE MAPAS ---
-function irParaMapa(lat, lon, endereco, cidade) {
+function irParaMapa(lat, lon, endereco, city) {
     if (lat && lon && !isNaN(lat) && !isNaN(lon) && lat !== 0) {
         if (localizacaoTecnico) {
             window.open(`https://www.google.com/maps/dir/?api=1&origin=${localizacaoTecnico.latitude},${localizacaoTecnico.longitude}&destination=${lat},${lon}&travelmode=driving`, '_blank');
@@ -1096,7 +1100,7 @@ function irParaMapa(lat, lon, endereco, cidade) {
             window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lon}`, '_blank');
         }
     } else if (endereco) {
-        const buscaEnderecoCompleto = `${endereco}, ${cidade || ''} - SP`;
+        const buscaEnderecoCompleto = `${endereco}, ${city || ''} - SP`;
         window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(buscaEnderecoCompleto)}`, '_blank');
     } else {
         alert("Endereço não disponível para navegação.");
@@ -1760,22 +1764,22 @@ async function salvarReversaoFinal(contratoId) {
             alert("Atendimento revertido e sincronizado com sucesso!");
 
             // Atualiza o item de histórico local correspondente na máquina do técnico
-            let historicoLocal = [];
+            let historicalLocal = [];
             try {
-                historicoLocal = JSON.parse(localStorage.getItem('historico_atendimentos')) || [];
+                historicalLocal = JSON.parse(localStorage.getItem('historico_atendimentos')) || [];
             } catch (e) {
-                historicoLocal = [];
+                historicalLocal = [];
             }
 
-            const itemIdx = historicoLocal.findIndex(h => String(h.contrato) === String(contratoId));
+            const itemIdx = historicalLocal.findIndex(h => String(h.contrato) === String(contratoId));
             if (itemIdx !== -1) {
-                historicoLocal[itemIdx].status = statusAtivo;
-                historicoLocal[itemIdx].dataHora = payload.data_reversao;
-                historicoLocal[itemIdx].codigo_baixa = statusAtivo === 'IMPRODUTIVO' ? payload.codigo_baixa : null;
-                historicoLocal[itemIdx].observacao = statusAtivo === 'IMPRODUTIVO' ? payload.observacao_conclusao : "EQUIPAMENTO RETIRADO WITH SUCCESS";
-                historicoLocal[itemIdx].qtd_fotos = statusAtivo === 'PRODUTIVO' ? payload.fotos.length : 1;
+                historicalLocal[itemIdx].status = statusAtivo;
+                historicalLocal[itemIdx].dataHora = payload.data_reversao;
+                historicalLocal[itemIdx].codigo_baixa = statusAtivo === 'IMPRODUTIVO' ? payload.codigo_baixa : null;
+                historicalLocal[itemIdx].observacao = statusAtivo === 'IMPRODUTIVO' ? payload.observacao_conclusao : "EQUIPAMENTO RETIRADO WITH SUCCESS";
+                historicalLocal[itemIdx].qtd_fotos = statusAtivo === 'PRODUTIVO' ? payload.fotos.length : 1;
                 
-                localStorage.setItem('historico_atendimentos', JSON.stringify(historicoLocal));
+                localStorage.setItem('historico_atendimentos', JSON.stringify(historicalLocal));
             }
 
             // Atualiza a visualização do histórico local do técnico
