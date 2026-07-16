@@ -404,7 +404,7 @@ function exibirLogin(mostrar) {
     }
 }
 
-function efetuarLogin() {
+function GridAtendimento() {
     const login = document.getElementById('login-usuario').value.trim().toLowerCase();
     if (!login) {
         alert("Por favor, digite seu login único.");
@@ -463,19 +463,23 @@ function limparEnderecoParaGeocodificacao(endereco) {
         // 1. Remove qualquer texto explicativo/bairro entre parênteses
         .replace(/\s*\([^)]*\)/g, "")
         
-        // 2. CORREÇÃO: Remove termos de complemento comuns e tudo o que vier depois no final do endereço
-        // Isso remove "CASA FRENTE", "FD 2", "FUNDO", "APTO", etc., deixando apenas "RUA/AVENIDA + NÚMERO"
+        // 2. CORREÇÃO DE PREFIXO: Normaliza abreviações de tipo de logradouro no início do endereço
+        .replace(/^R\b/i, "RUA")
+        .replace(/^AV\b/i, "AVENIDA")
+        
+        // 3. REMOÇÃO DE COMPLEMENTOS: Remove termos de complemento comuns e tudo o que vier depois deles no final do endereço
+        // Isso remove com precisão "CASA FRENTE", "FD 2", "FD", "CASA FUNDOS", "FUNDO", etc.
         .replace(/\s*\b(CASA|FUNDO|FUNDOS|FD|FDS|FTE|FRENTE|SOBRADO|TERREO|ALTOS|APTO|APT|AP|BLOCO|BL|SALA|SL|LOJA|LJ|PAV|PAVIMENTO|ANDAR)\b.*$/gi, "")
         
-        // 3. Remove siglas de quadra e lote de forma limpa
+        // 4. Remove siglas de quadra e lote de forma limpa
         .replace(/\b(QD|QUADRA)\s*\d*\b/gi, "")
         .replace(/\b(LT|LOTE)\s*\d*\b/gi, "")
         
-        // 4. Normaliza hifens órfãos seguidos do número do imóvel
+        // 5. Normaliza hifens órfãos seguidos do número do imóvel
         .replace(/\s*-\s*(\d+)/g, " $1")
         .replace(/\s*-\s*$/g, "") // Remove hífen órfão no final
         
-        // 5. Limpa sobras de pontuação e espaços múltiplos
+        // 6. Limpa sobras de pontuação e espaços múltiplos
         .replace(/,\s*,/g, ",")
         .replace(/,\s*$/g, "")
         .replace(/\s+/g, " ")
@@ -1314,7 +1318,7 @@ async function enviarAtendimentoFinal(contratoId) {
     if (statusAtivo === 'PRODUTIVO') {
         payload.imagens_etiqueta = fotosEquipamentos[contratoId];
     } else {
-        payload.imagem_fachada = fotoFachada[contratoId];
+        payload.imagem_fachada = photoFachada[contratoId];
         payload.codigo_baixa = document.getElementById(`input-codigo-baixa-${contratoId}`).value.trim();
         payload.observacao_conclusao = document.getElementById(`input-desc-improdutivo-${contratoId}`).value.trim();
     }
@@ -1343,7 +1347,7 @@ async function enviarAtendimentoFinal(contratoId) {
             document.getElementById(`card-${contratoId}`).remove();
             
             delete fotosEquipamentos[contratoId];
-            delete fotoFachada[contratoId];
+            delete photoFachada[contratoId];
             delete statusAtendimento[contratoId];
 
             const container = document.getElementById('lista-contratos');
