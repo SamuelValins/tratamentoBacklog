@@ -586,8 +586,8 @@ async function geocodificarFila(contratos) {
                         item.lon = longitude;
                         item.geocodificadoComSucesso = true;
 
-                        // Envia as coordenadas obtidas para salvar na tabela do Azure
-                        salvarCoordenadasNoBanco(item.contrato, item.PartitionKey || item.partitionKey || "", latitude, longitude);
+                        // --- NOVO: Garante o uso de AWAIT para aguardar a gravação antes de seguir no loop ---
+                        await salvarCoordenadasNoBanco(item.contrato, item.PartitionKey || item.partitionKey || "", latitude, longitude);
                     } else {
                         // --- NOVO: Se falhar (não encontrar o endereço), grava a coordenada 1.0, 1.0 como flag ---
                         item.lat = 1.0;
@@ -595,14 +595,14 @@ async function geocodificarFila(contratos) {
                         item.geocodificadoComSucesso = false;
                         
                         // Salva o erro no banco de dados como marcador "1.0, 1.0" para não tentar mais na próxima busca
-                        salvarCoordenadasNoBanco(item.contrato, item.PartitionKey || item.partitionKey || "", 1.0, 1.0);
+                        await salvarCoordenadasNoBanco(item.contrato, item.PartitionKey || item.partitionKey || "", 1.0, 1.0);
                     }
                 } else {
                     // Trata ausência de resposta da mesma forma para persistir a flag de erro "1.0, 1.0"
                     item.lat = 1.0;
                     item.lon = 1.0;
                     item.geocodificadoComSucesso = false;
-                    salvarCoordenadasNoBanco(item.contrato, item.PartitionKey || item.partitionKey || "", 1.0, 1.0);
+                    await salvarCoordenadasNoBanco(item.contrato, item.PartitionKey || item.partitionKey || "", 1.0, 1.0);
                 }
             }
         } catch (e) {
@@ -615,7 +615,7 @@ async function geocodificarFila(contratos) {
 // --- ENVIA AS COORDENADAS PARA O BACK-END SALVAR NA TABELA ---
 async function salvarCoordenadasNoBanco(contratoId, partitionKey, lat, lon) {
     try {
-        await fetch('/api/atualizarCoordenadas', {
+        const response = await fetch('/api/atualizarCoordenadas', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -625,7 +625,12 @@ async function salvarCoordenadasNoBanco(contratoId, partitionKey, lat, lon) {
                 longitude: lon
             })
         });
-        console.log(`Coordenadas persistidas no Azure para o contrato ${contratoId}`);
+        
+        if (response.ok) {
+            console.log(`Coordenadas persistidas no Azure para o contrato ${contratoId}`);
+        } else {
+            console.error(`Erro ao salvar coordenadas para o contrato ${contratoId}: Status ${response.status}`);
+        }
     } catch (e) {
         console.warn("Não foi possível salvar as coordenadas em segundo plano:", e);
     }
@@ -1201,7 +1206,6 @@ function renderizarFotosEquipamentos(contratoId) {
         deleteBtn.style.height = "20px";
         deleteBtn.style.fontSize = "10px";
         deleteBtn.style.cursor = "pointer";
-        deleteBtn.style.padding = "0";
         deleteBtn.style.display = "flex";
         deleteBtn.style.alignItems = "center";
         deleteBtn.style.justifyContent = "center";
@@ -1385,7 +1389,7 @@ function salvarNoHistoricoLocal(novoRegistro) {
     historico.unshift(novoRegistro); 
     
     if (historico.length > 50) {
-        historico = historicalLocal.slice(0, 50);
+        historicalLocal = historicalLocal.slice(0, 50);
     }
     localStorage.setItem('historico_atendimentos', JSON.stringify(historico));
 }
