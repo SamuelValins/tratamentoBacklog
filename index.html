@@ -404,7 +404,7 @@ function exibirLogin(mostrar) {
     }
 }
 
-function GridAtendimento() {
+function efetuarLogin() {
     const login = document.getElementById('login-usuario').value.trim().toLowerCase();
     if (!login) {
         alert("Por favor, digite seu login único.");
@@ -454,7 +454,7 @@ function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// --- HIGIENIZADOR CIRÚRGICO DE ENDEREÇOS COM REMOÇÃO DE COMPLEMENTOS INTERNOS ---
+// --- HIGIENIZADOR CIRÚRGICO DE ENDEREÇOS COM TRADUÇÃO DE SIGLAS DE TELEFONIA ---
 function limparEnderecoParaGeocodificacao(endereco) {
     if (!endereco) return "";
     let limpo = address => address.toUpperCase()
@@ -463,19 +463,25 @@ function limparEnderecoParaGeocodificacao(endereco) {
         // 1. Remove qualquer texto explicativo/bairro entre parênteses
         .replace(/\s*\([^)]*\)/g, "")
         
-        // 2. CORREÇÃO DE PREFIXO: Normaliza abreviações de tipo de logradouro no início do endereço
-        .replace(/^R\b/i, "RUA")
-        .replace(/^AV\b/i, "AVENIDA")
+        // 2. EXPANSÃO DE SIGLAS DE TELEFONIA (Garante que o Nominatim encontre os logradouros)
+        .replace(/\bV\b/g, "VIA")                       // V -> VIA (ex: V AGUINALDO)
+        .replace(/\bCD\b/g, "CONDE")                     // CD -> CONDE (ex: R CD ZEPELIN)
+        .replace(/\bSTOS\b/g, "SANTOS")                  // STOS -> SANTOS
+        .replace(/\bPRES\b/g, "PRESIDENTE")              // PRES -> PRESIDENTE
+        .replace(/\bSTO\b/g, "SANTO")
+        .replace(/\bSTA\b/g, "SANTA")
+        .replace(/^R\b/g, "RUA")                        // R -> RUA (no início)
+        .replace(/^AV\b/g, "AVENIDA")                    // AV -> AVENIDA (no início)
         
-        // 3. REMOÇÃO DE COMPLEMENTOS: Remove termos de complemento comuns e tudo o que vier depois deles no final do endereço
-        // Isso remove com precisão "CASA FRENTE", "FD 2", "FD", "CASA FUNDOS", "FUNDO", etc.
-        .replace(/\s*\b(CASA|FUNDO|FUNDOS|FD|FDS|FTE|FRENTE|SOBRADO|TERREO|ALTOS|APTO|APT|AP|BLOCO|BL|SALA|SL|LOJA|LJ|PAV|PAVIMENTO|ANDAR)\b.*$/gi, "")
+        // 3. REMOÇÃO DE COMPLEMENTOS AMPLIADA: Remove termos e qualquer informação após eles no final
+        // Limpa com precisão "CASA FRENTE", "FD 2", "FD", "CASA FUNDOS", "FUNDO", "FT", "BL 3", "F1", "F2", "BL 1000", etc.
+        .replace(/\s*\b(CASA|FUNDO|FUNDOS|FD|FDS|FTE|FT|F\d+|FRENTE|SOBRADO|TERREO|ALTOS|APTO|APT|AP|BLOCO|BL|SALA|SL|LOJA|LJ|PAV|PAVIMENTO|ANDAR)\b.*$/gi, "")
         
         // 4. Remove siglas de quadra e lote de forma limpa
         .replace(/\b(QD|QUADRA)\s*\d*\b/gi, "")
         .replace(/\b(LT|LOTE)\s*\d*\b/gi, "")
         
-        // 5. Normaliza hifens órfãos seguidos do número do imóvel
+        // 5. Normaliza hifens órfãos seguidos do número do imóvel (ex: "790 - F1" -> "790")
         .replace(/\s*-\s*(\d+)/g, " $1")
         .replace(/\s*-\s*$/g, "") // Remove hífen órfão no final
         
@@ -1109,7 +1115,7 @@ function renderizarContratos(contratos) {
 }
 
 // --- REDIRECIONAMENTO DE MAPAS ---
-function irParaMapa(lat, lon, address, cidade) {
+function irParaMapa(lat, lon, address, city) {
     // Se a coordenada for a flag de erro (1.0, 1.0), ignora redirecionamento por GPS
     if (lat && lon && !isNaN(lat) && !isNaN(lon) && lat !== 0 && lat !== 1.0) {
         if (localizacaoTecnico) {
@@ -1118,7 +1124,7 @@ function irParaMapa(lat, lon, address, cidade) {
             window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lon}`, '_blank');
         }
     } else if (address) {
-        const buscaEnderecoCompleto = `${address}, ${cidade || ''} - SP`;
+        const buscaEnderecoCompleto = `${address}, ${city || ''} - SP`;
         window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(buscaEnderecoCompleto)}`, '_blank');
     } else {
         alert("Endereço não disponível para navegação.");
