@@ -454,7 +454,7 @@ function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// --- HIGIENIZADOR CIRÚRGICO DE ENDEREÇOS ---
+// --- HIGIENIZADOR CIRÚRGICO DE ENDEREÇOS COM REMOÇÃO DE COMPLEMENTOS INTERNOS ---
 function limparEnderecoParaGeocodificacao(endereco) {
     if (!endereco) return "";
     let limpo = address => address.toUpperCase()
@@ -463,16 +463,19 @@ function limparEnderecoParaGeocodificacao(endereco) {
         // 1. Remove qualquer texto explicativo/bairro entre parênteses
         .replace(/\s*\([^)]*\)/g, "")
         
-        // 2. Remove apenas siglas de quadra e lote de forma limpa
+        // 2. CORREÇÃO: Remove termos de complemento comuns e tudo o que vier depois no final do endereço
+        // Isso remove "CASA FRENTE", "FD 2", "FUNDO", "APTO", etc., deixando apenas "RUA/AVENIDA + NÚMERO"
+        .replace(/\s*\b(CASA|FUNDO|FUNDOS|FD|FDS|FTE|FRENTE|SOBRADO|TERREO|ALTOS|APTO|APT|AP|BLOCO|BL|SALA|SL|LOJA|LJ|PAV|PAVIMENTO|ANDAR)\b.*$/gi, "")
+        
+        // 3. Remove siglas de quadra e lote de forma limpa
         .replace(/\b(QD|QUADRA)\s*\d*\b/gi, "")
         .replace(/\b(LT|LOTE)\s*\d*\b/gi, "")
-        .replace(/\b(AP|APTO|APT|BL|BLOCO|FLAT|SOBRADO|FUNDO|ALTOS)\s*[A-Z0-9]?\b/gi, "")
         
-        // 3. Normaliza hifens órfãos seguidos do número do imóvel
+        // 4. Normaliza hifens órfãos seguidos do número do imóvel
         .replace(/\s*-\s*(\d+)/g, " $1")
         .replace(/\s*-\s*$/g, "") // Remove hífen órfão no final
         
-        // 4. Limpa sobras de pontuação
+        // 5. Limpa sobras de pontuação e espaços múltiplos
         .replace(/,\s*,/g, ",")
         .replace(/,\s*$/g, "")
         .replace(/\s+/g, " ")
@@ -542,8 +545,7 @@ async function geocodificarFila(contratos) {
 
         // Se o banco de dados já retornou coordenadas válidas de gravação anterior, pula o Nominatim
         if (latExistente !== undefined && latExistente !== null && !isNaN(parseFloat(latExistente)) &&
-            lonExistente !== undefined && lonExistente !== null && !isNaN(parseFloat(lonExistente)) &&
-            parseFloat(latExistente) !== 0) {
+            lonExistente !== undefined && lonExistente !== null && !isNaN(parseFloat(lonExistente))) {
             
             item.lat = parseFloat(latExistente);
             item.lon = parseFloat(lonExistente);
@@ -577,10 +579,20 @@ async function geocodificarFila(contratos) {
                         // Envia as coordenadas obtidas para salvar na tabela do Azure
                         salvarCoordenadasNoBanco(item.contrato, item.PartitionKey || item.partitionKey || "", latitude, longitude);
                     } else {
-                        item.lat = null;
-                        item.lon = null;
+                        // --- NOVO: Se falhar (não encontrar o endereço), grava a coordenada 1.0, 1.0 como flag ---
+                        item.lat = 1.0;
+                        item.lon = 1.0;
                         item.geocodificadoComSucesso = false;
+                        
+                        // Salva o erro no banco de dados como marcador "1.0, 1.0" para não tentar mais na próxima busca
+                        salvarCoordenadasNoBanco(item.contrato, item.PartitionKey || item.partitionKey || "", 1.0, 1.0);
                     }
+                } else {
+                    // Trata ausência de resposta da mesma forma para persistir a flag de erro "1.0, 1.0"
+                    item.lat = 1.0;
+                    item.lon = 1.0;
+                    item.geocodificadoComSucesso = false;
+                    salvarCoordenadasNoBanco(item.contrato, item.PartitionKey || item.partitionKey || "", 1.0, 1.0);
                 }
             }
         } catch (e) {
@@ -649,8 +661,9 @@ function ordenarFilaNearestNeighbor(contratos, startLat, startLon, limiteQtd) {
     }
 
     // CASO 2: GPS ativo. Separamos entre os mapeados com sucesso e os que falharam
-    const mapeados = contratos.filter(c => c.lat !== null && c.lon !== null && c.geocodificadoComSucesso !== false);
-    const naoMapeados = contratos.filter(c => c.lat === null || c.lon === null || c.geocodificadoComSucesso === false);
+    // Filtramos e ignoramos os contratos que possuem a flag de erro de geocodificação "1.0, 1.0"
+    const mapeados = contratos.filter(c => c.lat !== null && c.lon !== null && c.geocodificadoComSucesso !== false && c.lat !== 1.0);
+    const naoMapeados = contratos.filter(c => c.lat === null || c.lon === null || c.geocodificadoComSucesso === false || c.lat === 1.0);
 
     const resultadoOrdenado = [];
     
@@ -720,7 +733,7 @@ function ordenarFilaNearestNeighbor(contratos, startLat, startLon, limiteQtd) {
 document.getElementById('select-safra').addEventListener('change', function() {
     const selectedValues = Array.from(this.selectedOptions).map(opt => opt.value);
     
-    if (selectedValues.includes('TODOS') && selectedValues.length > 1) {
+    if (selectedValues.includes('TODOS' && selectedValues.length > 1)) {
         if (selectedValues[selectedValues.length - 1] === 'TODOS') {
             Array.from(this.options).forEach(opt => {
                 opt.selected = (opt.value === 'TODOS');
@@ -950,8 +963,7 @@ document.getElementById('btn-confirmar-bairro').addEventListener('click', async 
         return;
     }
 
-    document.getElementById('card-bairro-selecao').style.display = 'none';
-
+    // Mantém o painel de bairro visível removendo a ocultação automática
     // Filtra localmente apenas contratos do bairro correspondente escolhido pelo usuário
     const contratosNoBairro = contratosCarregadosTemporarios.filter(c => c.bairro === bairroSelecionado);
 
@@ -989,7 +1001,8 @@ function renderizarContratos(contratos) {
         const tagClass = item.tipo.includes('OPC') ? 'tipo-opcao' : 'tipo-inad';
         
         let distTexto = "";
-        if (item.distanciaDireta && item.distanciaDireta !== 999999) {
+        // Se as coordenadas forem a flag de erro (1.0, 1.0), não calcula a distância para exibir em Km
+        if (item.distanciaDireta && item.distanciaDireta !== 999999 && item.lat !== 1.0) {
             distTexto = ` • 📍 A ${item.distanciaDireta.toFixed(2)} Km de sua posição inicial`;
             
             if (item.distancia && item.distancia !== 999999 && Math.abs(item.distancia - item.distanciaDireta) > 0.01) {
@@ -997,15 +1010,15 @@ function renderizarContratos(contratos) {
             }
         }
 
-        const distPill = (item.distanciaDireta && item.distanciaDireta !== 999999) 
+        const distPill = (item.distanciaDireta && item.distanciaDireta !== 999999 && item.lat !== 1.0) 
             ? `<div style="background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.2); padding: 8px 12px; border-radius: 6px; font-size: 12px; font-weight: bold; color: #38bdf8; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
                  📍 CONTRATO ${item.contrato} • ${item.distanciaDireta.toFixed(1)} KM DE VOCÊ
                </div>`
             : "";
 
         const limparNumero = (num) => String(num).replace(/\D/g, '');
-        const mensagemPronta = gerarMensagemWhatsapp(item.endereco, item.complemento, item.bairro, item.cidade, item.contrato);
-        const mensagemCodificada = encodeURIComponent(mensagemPronta);
+        const messagePronta = gerarMensagemWhatsapp(item.endereco, item.complemento, item.bairro, item.cidade, item.contrato);
+        const mensagemCodificada = encodeURIComponent(messagePronta);
 
         let htmlTelefones = "";
         if (item.tel_res) {
@@ -1092,15 +1105,16 @@ function renderizarContratos(contratos) {
 }
 
 // --- REDIRECIONAMENTO DE MAPAS ---
-function irParaMapa(lat, lon, endereco, city) {
-    if (lat && lon && !isNaN(lat) && !isNaN(lon) && lat !== 0) {
+function irParaMapa(lat, lon, address, cidade) {
+    // Se a coordenada for a flag de erro (1.0, 1.0), ignora redirecionamento por GPS
+    if (lat && lon && !isNaN(lat) && !isNaN(lon) && lat !== 0 && lat !== 1.0) {
         if (localizacaoTecnico) {
             window.open(`https://www.google.com/maps/dir/?api=1&origin=${localizacaoTecnico.latitude},${localizacaoTecnico.longitude}&destination=${lat},${lon}&travelmode=driving`, '_blank');
         } else {
             window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lon}`, '_blank');
         }
-    } else if (endereco) {
-        const buscaEnderecoCompleto = `${endereco}, ${city || ''} - SP`;
+    } else if (address) {
+        const buscaEnderecoCompleto = `${address}, ${cidade || ''} - SP`;
         window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(buscaEnderecoCompleto)}`, '_blank');
     } else {
         alert("Endereço não disponível para navegação.");
@@ -1361,7 +1375,7 @@ function salvarNoHistoricoLocal(novoRegistro) {
     historico.unshift(novoRegistro); 
     
     if (historico.length > 50) {
-        historico = historico.slice(0, 50);
+        historico = historicalLocal.slice(0, 50);
     }
     localStorage.setItem('historico_atendimentos', JSON.stringify(historico));
 }
@@ -1838,8 +1852,8 @@ function inicializarMapaLeaflet() {
     // Limpa pontos anteriores antes de redesenhar
     markersGroup.clearLayers();
 
-    // Filtra apenas os contratos que foram geocodificados com sucesso
-    const contratosComGps = todosContratosOrdenados.filter(c => c.lat !== null && c.lon !== null);
+    // Filtra apenas os contratos que foram geocodificados com sucesso e ignora os marcadores de erro "1.0, 1.0"
+    const contratosComGps = todosContratosOrdenados.filter(c => c.lat !== null && c.lon !== null && c.lat !== 1.0);
 
     if (contratosComGps.length === 0) {
         alert("Nenhum contrato ativo possui coordenadas geocodificadas para exibição.");
