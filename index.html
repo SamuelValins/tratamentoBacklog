@@ -133,10 +133,12 @@ button {
     border-radius: 10px;
     padding: 15px;
     margin-bottom: 15px;
+    transition: border 0.3s ease;
 }
 .contrato-header {
     display: flex;
     justify-content: space-between;
+    align-items: center;
     border-bottom: 1px dashed #334155;
     padding-bottom: 8px;
     margin-bottom: 8px;
@@ -1072,7 +1074,7 @@ function renderizarContratos(contratos) {
             ${item.obs ? `<div class="info-linha" style="color: #f59e0b;"><strong>Obs:</strong> ${item.obs}</div>` : ''}
             
             <div style="display:flex; gap:10px; margin-top:15px;">
-                <button class="btn-primary" style="margin-top:0;" onclick="irParaMapa(${item.lat || 0}, ${item.lon || 0}, '${item.endereco.replace(/'/g, "\\'")}', '${item.cidade}')">🧭 MAPA</button>
+                <button class="btn-primary" style="margin-top:0;" onclick="irParaMapa(${item.lat || 0}, ${item.lon || 0}, '${item.endereco.replace(/'/g, "\\'")}', '${item.cidade}', '${item.contrato}')">🧭 MAPA</button>
                 <button class="btn-warning" style="margin-top:0;" id="btn-atender-${item.contrato}" onclick="iniciarAtendimento('${item.contrato}')">INICIAR ATENDIMENTO</button>
             </div>
             
@@ -1120,8 +1122,15 @@ function renderizarContratos(contratos) {
 }
 
 // --- REDIRECIONAMENTO DE MAPAS ---
-function irParaMapa(lat, lon, address, city) {
-    // Se a coordenada for a flag de erro (1.0, 1.0), ignora redirecionamento por GPS
+function irParaMapa(lat, lon, address, city, contratoId) {
+    // Ao traçar a rota, inicia automaticamente o atendimento se já não estiver ativo
+    if (contratoId) {
+        const boxConclusao = document.getElementById(`conclusao-${contratoId}`);
+        if (boxConclusao && boxConclusao.style.display !== "block") {
+            iniciarAtendimento(contratoId);
+        }
+    }
+
     if (lat && lon && !isNaN(lat) && !isNaN(lon) && lat !== 0 && lat !== 1.0) {
         if (localizacaoTecnico) {
             window.open(`https://www.google.com/maps/dir/?api=1&origin=${localizacaoTecnico.latitude},${localizacaoTecnico.longitude}&destination=${lat},${lon}&travelmode=driving`, '_blank');
@@ -1458,15 +1467,49 @@ document.getElementById('btn-fechar-historico').addEventListener('click', () => 
 function iniciarAtendimento(contratoId) {
     const boxConclusao = document.getElementById(`conclusao-${contratoId}`);
     const btnAtender = document.getElementById(`btn-atender-${contratoId}`);
+    const card = document.getElementById(`card-${contratoId}`);
     
+    if (!card) return;
+
     if (boxConclusao.style.display === "block") {
         boxConclusao.style.display = "none";
         btnAtender.textContent = "INICIAR ATENDIMENTO";
         btnAtender.style.background = "#f59e0b";
+        card.style.border = "1px solid #334155";
+        
+        // Remove a TAG visual de atendimento ativo
+        const badge = document.getElementById(`badge-atendimento-${contratoId}`);
+        if (badge) badge.remove();
     } else {
         boxConclusao.style.display = "block";
         btnAtender.textContent = "CANCELAR ATENDIMENTO ✕";
         btnAtender.style.background = "#ef4444";
+        card.style.border = "2px solid #f59e0b"; // Borda laranja de destaque
+
+        // Adiciona a TAG/Badge "EM ATENDIMENTO" no cabeçalho se não existir
+        if (!document.getElementById(`badge-atendimento-${contratoId}`)) {
+            const header = card.querySelector('.contrato-header');
+            if (header) {
+                const badge = document.createElement('span');
+                badge.id = `badge-atendimento-${contratoId}`;
+                badge.className = 'tag-tipo';
+                badge.style.background = '#f59e0b';
+                badge.style.color = '#0f172a';
+                badge.style.marginLeft = '8px';
+                badge.style.marginRight = 'auto';
+                badge.textContent = '⚠️ EM ATENDIMENTO';
+                header.insertBefore(badge, header.children[1]);
+            }
+        }
+
+        // Move o card fisicamente para o topo da lista de exibição
+        const container = document.getElementById('lista-contratos');
+        if (container) {
+            container.insertBefore(card, container.firstChild);
+        }
+
+        // Rola a tela suavemente para focar no card em atendimento
+        card.scrollIntoView({ behavior: 'smooth', block: 'start' });
         
         obterGeolocalizacao().then(coords => {
             localizacaoTecnico = coords;
@@ -1915,7 +1958,7 @@ function inicializarMapaLeaflet() {
                 <strong>Titular:</strong> ${c.titular}<br>
                 <strong>Tipo:</strong> ${c.tipo}<br>
                 <strong>Endereço:</strong> ${c.endereco}<br>
-                <button onclick="irParaMapa(${cLat}, ${cLon}, '${c.endereco.replace(/'/g, "\\'")}', '${c.cidade}'); fecharMapaBacklog();" style="background: #22c55e; color: white; border: none; border-radius: 4px; padding: 6px 10px; font-weight: bold; font-size: 11px; width: 100%; cursor: pointer; margin-top: 8px;">🧭 TRAÇAR ROTA NO GPS</button>
+                <button onclick="irParaMapa(${cLat}, ${cLon}, '${c.endereco.replace(/'/g, "\\'")}', '${c.cidade}', '${c.contrato}'); fecharMapaBacklog();" style="background: #22c55e; color: white; border: none; border-radius: 4px; padding: 6px 10px; font-weight: bold; font-size: 11px; width: 100%; cursor: pointer; margin-top: 8px;">🧭 TRAÇAR ROTA NO GPS</button>
             </div>
         `;
         contractMarker.bindPopup(popHTML);
