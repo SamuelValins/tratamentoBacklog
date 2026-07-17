@@ -192,7 +192,7 @@ button {
 <div id="login-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0f172a; z-index: 20000; display: flex; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box;">
     <div class="card" style="width: 100%; max-width: 400px; padding: 30px; text-align: center; border: 1px solid #334155;">
         <h2 style="color: #38bdf8; margin-top: 0;">🚗 Claro Retirada</h2>
-        <p style="font-size: 13px; color: #94a3b8; margin-bottom: 20px;">Insira seu login authorized para gerenciar suas rotas de trabalho.</p>
+        <p style="font-size: 13px; color: #94a3b8; margin-bottom: 20px;">Insira seu login autorizado para gerenciar suas rotas de trabalho.</p>
         
         <label style="text-align: left;">Login do Técnico</label>
         <input type="text" id="login-usuario" placeholder="DIGITE SEU LOGIN" style="margin-bottom: 20px; text-align: center;" oninput="this.value = this.value.toLowerCase().trim()">
@@ -1328,7 +1328,7 @@ async function enviarAtendimentoFinal(contratoId) {
     if (statusAtivo === 'PRODUTIVO') {
         payload.imagens_etiqueta = fotosEquipamentos[contratoId];
     } else {
-        payload.imagem_fachada = photoFachada[contratoId];
+        payload.imagem_fachada = fotoFachada[contratoId];
         payload.codigo_baixa = document.getElementById(`input-codigo-baixa-${contratoId}`).value.trim();
         payload.observacao_conclusao = document.getElementById(`input-desc-improdutivo-${contratoId}`).value.trim();
     }
@@ -1349,7 +1349,7 @@ async function enviarAtendimentoFinal(contratoId) {
                 dataHora: new Date().toISOString(),
                 tecnico: tecnico,
                 codigo_baixa: statusAtivo === 'IMPRODUTIVO' ? payload.codigo_baixa : null,
-                observacao: statusAtivo === 'IMPRODUTIVO' ? payload.observacao_conclusao : "EQUIPAMENTO RETIRADO WITH SUCCESS",
+                observacao: statusAtivo === 'IMPRODUTIVO' ? payload.observacao_conclusao : "EQUIPAMENTO RETIRADO COM SUCESSO",
                 qtd_fotos: statusAtivo === 'PRODUTIVO' ? payload.imagens_etiqueta.length : 1
             };
             salvarNoHistoricoLocal(registroHistorico);
@@ -1357,7 +1357,7 @@ async function enviarAtendimentoFinal(contratoId) {
             document.getElementById(`card-${contratoId}`).remove();
             
             delete fotosEquipamentos[contratoId];
-            delete photoFachada[contratoId];
+            delete fotoFachada[contratoId];
             delete statusAtendimento[contratoId];
 
             const container = document.getElementById('lista-contratos');
@@ -1389,7 +1389,7 @@ function salvarNoHistoricoLocal(novoRegistro) {
     historico.unshift(novoRegistro); 
     
     if (historico.length > 50) {
-        historicalLocal = historicalLocal.slice(0, 50);
+        historico = historico.slice(0, 50);
     }
     localStorage.setItem('historico_atendimentos', JSON.stringify(historico));
 }
@@ -1792,22 +1792,22 @@ async function salvarReversaoFinal(contratoId) {
             alert("Atendimento revertido e sincronizado com sucesso!");
 
             // Atualiza o item de histórico local correspondente na máquina do técnico
-            let historicalLocal = [];
+            let historicoLocal = [];
             try {
-                historicalLocal = JSON.parse(localStorage.getItem('historico_atendimentos')) || [];
+                historicoLocal = JSON.parse(localStorage.getItem('historico_atendimentos')) || [];
             } catch (e) {
-                historicalLocal = [];
+                historicoLocal = [];
             }
 
-            const itemIdx = historicalLocal.findIndex(h => String(h.contrato) === String(contratoId));
+            const itemIdx = historicoLocal.findIndex(h => String(h.contrato) === String(contratoId));
             if (itemIdx !== -1) {
-                historicalLocal[itemIdx].status = statusAtivo;
-                historicalLocal[itemIdx].dataHora = payload.data_reversao;
-                historicalLocal[itemIdx].codigo_baixa = statusAtivo === 'IMPRODUTIVO' ? payload.codigo_baixa : null;
-                historicalLocal[itemIdx].observacao = statusAtivo === 'IMPRODUTIVO' ? payload.observacao_conclusao : "EQUIPAMENTO RETIRADO WITH SUCCESS";
-                historicalLocal[itemIdx].qtd_fotos = statusAtivo === 'PRODUTIVO' ? payload.fotos.length : 1;
+                historicoLocal[itemIdx].status = statusAtivo;
+                historicoLocal[itemIdx].dataHora = payload.data_reversao;
+                historicoLocal[itemIdx].codigo_baixa = statusAtivo === 'IMPRODUTIVO' ? payload.codigo_baixa : null;
+                historicoLocal[itemIdx].observacao = statusAtivo === 'IMPRODUTIVO' ? payload.observacao_conclusao : "EQUIPAMENTO RETIRADO COM SUCESSO";
+                historicoLocal[itemIdx].qtd_fotos = statusAtivo === 'PRODUTIVO' ? payload.fotos.length : 1;
                 
-                localStorage.setItem('historico_atendimentos', JSON.stringify(historicalLocal));
+                localStorage.setItem('historico_atendimentos', JSON.stringify(historicoLocal));
             }
 
             // Atualiza a visualização do histórico local do técnico
@@ -1826,7 +1826,7 @@ async function salvarReversaoFinal(contratoId) {
 // --- SISTEMA DO MAPA GERAL DO BACKLOG ---
 // ==========================================
 
-// --- ABRE O MODAL AND INICIALIZA O LEAFLET ---
+// --- ABRE O MODAL E INICIALIZA O LEAFLET ---
 function abrirMapaBacklog() {
     if (!todosContratosOrdenados || todosContratosOrdenados.length === 0) {
         alert("Por favor, carregue os contratos primeiro!");
@@ -1921,8 +1921,12 @@ function inicializarMapaLeaflet() {
         contractMarker.bindPopup(popHTML);
     });
 
-    // 3. Ajusta o enquadramento da câmera do mapa de forma automática
-    if (bounds.length > 0) {
+    // 3. Ajusta o enquadramento da câmera do mapa de forma inteligente
+    if (localizacaoTecnico) {
+        // Se a localização do técnico estiver disponível, foca nela com nível de zoom aproximado 14
+        mapaBacklogInstance.setView([localizacaoTecnico.latitude, localizacaoTecnico.longitude], 14);
+    } else if (bounds.length > 0) {
+        // Fallback: Caso o GPS esteja desativado, enquadra todos os pontos no mapa
         mapaBacklogInstance.fitBounds(bounds, { padding: [40, 40] });
     }
 }
