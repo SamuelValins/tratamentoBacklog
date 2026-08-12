@@ -1,5 +1,3 @@
---- START OF FILE Paste August 12, 2026 - 3:10PM ---
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -224,11 +222,74 @@ button {
     white-space: nowrap !important;
     text-align: left !important;
 }
+
+/* --- RESPONSIVIDADE PARA O MODAL E FILTROS DO MAPA EM DISPOSITIVOS MÓVEIS --- */
+@media (max-width: 768px) {
+    #modal-mapa-backlog > div {
+        height: 95vh !important;
+        padding: 10px !important;
+        margin: 5px auto !important;
+    }
+
+    #modal-mapa-backlog h3 {
+        font-size: 14px !important;
+        padding-right: 35px !important;
+        margin-bottom: 8px !important;
+    }
+
+    #card-resumo-mapa {
+        top: 8px !important;
+        left: 8px !important;
+        gap: 4px !important;
+    }
+
+    #card-resumo-mapa > div {
+        padding: 4px 6px !important;
+    }
+
+    #card-resumo-mapa span {
+        font-size: 9px !important;
+    }
+
+    #card-resumo-mapa strong {
+        font-size: 12px !important;
+    }
+
+    #wrapper-filtro-flutuante {
+        top: 48px !important;
+        right: 8px !important;
+        left: 8px !important;
+        width: auto !important;
+        max-width: none !important;
+    }
+
+    #btn-toggle-filtro-mapa {
+        padding: 8px 12px !important;
+        font-size: 12px !important;
+    }
+
+    #painel-filtro-conteudo-mapa {
+        max-height: 45vh !important;
+        padding: 10px !important;
+    }
+
+    #painel-filtro-conteudo-mapa label,
+    #row-mapa-safra-todos {
+        padding: 8px 0 !important;
+    }
+
+    #painel-filtro-conteudo-mapa input[type="checkbox"] {
+        width: 20px !important;
+        height: 20px !important;
+        min-width: 20px !important;
+        min-height: 20px !important;
+    }
+}
 </style>
 </head>
 <body>
 
-<!-- Tela de Bloqueio/Login Integrada ao Azure [2] -->
+<!-- Tela de Bloqueio/Login Integrada ao Azure -->
 <div id="login-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0f172a; z-index: 20000; display: flex; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box;">
     <div class="card" style="width: 100%; max-width: 400px; padding: 30px; text-align: center; border: 1px solid #334155;">
         <h2 style="color: #38bdf8; margin-top: 0;">🚗 Claro Retirada</h2>
@@ -2114,7 +2175,7 @@ function fecharMapaBacklog() {
     document.getElementById('modal-mapa-backlog').style.display = 'none';
 }
 
-// --- INICIALIZA E DESENHA O MAPA ---
+// --- INICIALIZA E DESENHA O MAPA (COM BLOQUEIO DE PROPAGAÇÃO TOUCH/CLICK) ---
 function inicializarMapaLeaflet() {
     if (mapaBacklogInstance) {
         mapaBacklogInstance.invalidateSize();
@@ -2126,6 +2187,18 @@ function inicializarMapaLeaflet() {
         }).addTo(mapaBacklogInstance);
 
         markersGroup = L.layerGroup().addTo(mapaBacklogInstance);
+
+        // --- IMPEDE QUE CLIQUES/SCROLL NO FILTRO E CARDS INTERFIRAM NO MAPA ---
+        const filtroElem = document.getElementById('wrapper-filtro-flutuante');
+        if (filtroElem) {
+            L.DomEvent.disableClickPropagation(filtroElem);
+            L.DomEvent.disableScrollPropagation(filtroElem);
+        }
+
+        const cardElem = document.getElementById('card-resumo-mapa');
+        if (cardElem) {
+            L.DomEvent.disableClickPropagation(cardElem);
+        }
     }
 
     atualizarMarcadoresMapa();
