@@ -76,7 +76,6 @@ input, select, textarea {
     font-family: inherit;
     font-size: 14px;
 }
-/* Estilo específico para permitir multi-seleção confortável */
 select[multiple] {
     height: 110px;
     overflow-y: auto;
@@ -187,17 +186,6 @@ button {
     overflow-y: auto;
     padding: 20px;
     box-sizing: border-box;
-}
-
-/* Ajuste Responsivo do Painel Lateral do Mapa */
-@media (max-width: 650px) {
-    #container-mapa-com-filtro {
-        flex-direction: column !important;
-    }
-    #painel-filtro-mapa {
-        width: 100% !important;
-        max-height: 150px;
-    }
 }
 </style>
 </head>
@@ -311,32 +299,62 @@ button {
     </div>
 </div>
 
-<!-- Modal do Mapa do Backlog Geral (COM PAINEL LATERAL DE FILTRO) -->
+<!-- Modal do Mapa do Backlog Geral (COM OVERLAY FLUTUANTE EXPANSÍVEL E STAT CARDS) -->
 <div id="modal-mapa-backlog" class="modal-overlay" style="z-index: 10005;">
     <div style="background: #1e293b; max-width: 1050px; width: 100%; height: 90vh; display: flex; flex-direction: column; padding: 20px; border-radius: 10px; border: 1px solid #334155; position: relative; margin: 20px auto; box-sizing: border-box;">
-        <button style="position: absolute; top: 15px; right: 15px; background: #ef4444; color: white; border: none; font-weight: bold; width: 35px; height: 35px; border-radius: 50%; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 10006;" onclick="fecharMapaBacklog()">✕</button>
-        <h3 style="margin-top: 0; color: #38bdf8; margin-bottom: 15px;">🗺️ Mapa Geral de Contratos do Backlog</h3>
         
-        <!-- Container Flex contendo o Filtro Lateral e o Mapa Leaflet -->
-        <div id="container-mapa-com-filtro" style="display: flex; flex: 1; gap: 15px; overflow: hidden; position: relative;">
+        <button style="position: absolute; top: 15px; right: 15px; background: #ef4444; color: white; border: none; font-weight: bold; width: 35px; height: 35px; border-radius: 50%; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 10010;" onclick="fecharMapaBacklog()">✕</button>
+        
+        <h3 style="margin-top: 0; color: #38bdf8; margin-bottom: 12px; padding-right: 40px;">🗺️ Mapa Geral de Contratos do Backlog</h3>
+        
+        <!-- CARD RESUMO ESTATÍSTICO DE QUANTIDADES (OPÇÃO X INADIMPLÊNCIA) -->
+        <div id="card-resumo-mapa" style="display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 130px; background: rgba(30, 58, 138, 0.6); border: 1px solid #2563eb; padding: 8px 12px; border-radius: 8px; text-align: center; box-sizing: border-box;">
+                <span style="font-size: 11px; color: #93c5fd; display: block; font-weight: bold;">🔹 OPÇÃO</span>
+                <strong id="stat-qtd-opcao" style="font-size: 18px; color: #ffffff;">0</strong>
+            </div>
+            <div style="flex: 1; min-width: 130px; background: rgba(127, 29, 29, 0.6); border: 1px solid #ef4444; padding: 8px 12px; border-radius: 8px; text-align: center; box-sizing: border-box;">
+                <span style="font-size: 11px; color: #fca5a5; display: block; font-weight: bold;">🔴 INADIMPLÊNCIA</span>
+                <strong id="stat-qtd-inad" style="font-size: 18px; color: #ffffff;">0</strong>
+            </div>
+            <div style="flex: 1; min-width: 130px; background: rgba(15, 23, 42, 0.8); border: 1px solid #334155; padding: 8px 12px; border-radius: 8px; text-align: center; box-sizing: border-box;">
+                <span style="font-size: 11px; color: #38bdf8; display: block; font-weight: bold;">📍 TOTAL NO MAPA</span>
+                <strong id="stat-qtd-total" style="font-size: 18px; color: #38bdf8;">0</strong>
+            </div>
+        </div>
+
+        <!-- CONTAINER DO MAPA COM OVERLAY FLUTUANTE DO FILTRO -->
+        <div style="flex: 1; height: 100%; position: relative; border-radius: 8px; overflow: hidden; border: 1px solid #334155;">
             
-            <!-- Painel Lateral de Filtro por Safra -->
-            <div id="painel-filtro-mapa" style="width: 210px; min-width: 180px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px; display: flex; flex-direction: column; overflow-y: auto; box-sizing: border-box;">
-                <h4 style="margin: 0 0 10px 0; color: #38bdf8; font-size: 13px; border-bottom: 1px solid #334155; padding-bottom: 6px;">📅 Mês Safra</h4>
+            <!-- BOTÃO FLUTUANTE E MENU EXPANSÍVEL DO FILTRO -->
+            <div id="wrapper-filtro-flutuante" style="position: absolute; top: 12px; right: 12px; z-index: 1000; max-width: 270px; width: calc(100% - 24px);">
                 
-                <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: bold; color: #22c55e; margin-top: 0; cursor: pointer; user-select: none;">
-                    <input type="checkbox" id="chk-mapa-safra-todos" checked onchange="alternarTodosFiltrosMapa(this.checked)">
-                    [SELECIONAR TODOS]
-                </label>
-                <hr style="border: 0; border-top: 1px dashed #334155; margin: 8px 0; width: 100%;">
-                
-                <div id="lista-checkboxes-safra-mapa" style="display: flex; flex-direction: column; gap: 6px;">
-                    <!-- Checkboxes dos meses gerados dinamicamente via JS -->
+                <button type="button" id="btn-toggle-filtro-mapa" onclick="toggleFiltroMapa()" style="background: #1e293b; color: #38bdf8; border: 1px solid #38bdf8; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; align-items: center; width: 100%; box-shadow: 0 4px 12px rgba(0,0,0,0.6);">
+                    <span id="label-btn-filtro-mapa">📅 Filtrar Meses</span>
+                    <span id="icone-btn-filtro-mapa" style="font-size: 10px; margin-left: 8px;">▼</span>
+                </button>
+
+                <!-- CONTEÚDO EXPANSÍVEL (RECOLHIDO POR PADRÃO) -->
+                <div id="painel-filtro-conteudo-mapa" style="display: none; background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px; margin-top: 6px; max-height: 280px; overflow-y: auto; box-shadow: 0 8px 20px rgba(0,0,0,0.8); box-sizing: border-box;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px solid #334155; padding-bottom: 6px;">
+                        <span style="font-size: 12px; font-weight: bold; color: #38bdf8;">Mês Safra</span>
+                        <button type="button" onclick="toggleFiltroMapa(false)" style="background: transparent; color: #ef4444; border: none; padding: 0; width: auto; font-size: 12px; cursor: pointer; font-weight: bold;">Fechar ✕</button>
+                    </div>
+
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: bold; color: #22c55e; margin-top: 0; cursor: pointer; user-select: none;">
+                        <input type="checkbox" id="chk-mapa-safra-todos" checked onchange="alternarTodosFiltrosMapa(this.checked)">
+                        [SELECIONAR TODOS]
+                    </label>
+                    <hr style="border: 0; border-top: 1px dashed #334155; margin: 8px 0; width: 100%;">
+                    
+                    <div id="lista-checkboxes-safra-mapa" style="display: flex; flex-direction: column; gap: 6px;">
+                        <!-- Checkboxes dos meses gerados dinamicamente -->
+                    </div>
                 </div>
             </div>
 
-            <!-- Elemento onde o Leaflet é acoplado -->
-            <div id="mapa-backlog-leaflet" style="flex: 1; height: 100%; border-radius: 8px; border: 1px solid #334155; background: #0f172a;"></div>
+            <!-- ELEMENTO DO LEAFLET -->
+            <div id="mapa-backlog-leaflet" style="width: 100%; height: 100%; background: #0f172a;"></div>
         </div>
     </div>
 </div>
@@ -345,16 +363,16 @@ button {
 let localizacaoTecnico = null;
 
 // Estruturas para gerenciar o estado temporário das fotos por contrato
-let fotosEquipamentos = {}; // { "contratoId": [base64_1, base64_2, ...] }
-let fotoFachada = {};       // { "contratoId": base64 }
-let statusAtendimento = {}; // { "contratoId": "PRODUTIVO" | "IMPRODUTIVO" }
+let fotosEquipamentos = {}; 
+let fotoFachada = {};       
+let statusAtendimento = {}; 
 
 // --- CONTROLE DE PAGINAÇÃO GLOBAL ---
 let queryAnterior = "";
 let todosContratosOrdenados = [];
 let indexExibicaoAtual = 0;
-let limiteExibicao = 30; // Valor dinâmico baseado no select-quantidade
-let contratosCarregadosTemporarios = []; // Armazena os contratos carregados da busca original
+let limiteExibicao = 30; 
+let contratosCarregadosTemporarios = []; 
 
 // Lista Padrão de Safras disponíveis para o mapa
 const listaSafrasOpcoes = [
@@ -363,10 +381,10 @@ const listaSafrasOpcoes = [
 ];
 
 // Estados adicionais para Reversão no Histórico Local
-let fotosReversao = {};                // { contratoId: [ { base64: '...', equipamento: '...' } ] }
-let fotoFachadaReversao = {};          // { contratoId: 'base64' }
-let statusReversao = {};               // { contratoId: 'PRODUTIVO' | 'IMPRODUTIVO' }
-let equipamentosContratoReversao = {}; // { contratoId: [ 'equipamento1', 'equipamento2' ] }
+let fotosReversao = {};                
+let fotoFachadaReversao = {};          
+let statusReversao = {};               
+let equipamentosContratoReversao = {}; 
 
 // Variáveis Globais de Controle de Ciclo do Leaflet
 let mapaBacklogInstance = null;
@@ -391,20 +409,17 @@ async function validarAcesso(login, isAutoLogin = false) {
             const data = await response.json();
             
             if (data.status === 'ATIVO') {
-                // Guarda sessão
                 localStorage.setItem('login_tecnico', login);
                 document.getElementById('input-tecnico').value = login;
                 
-                // Aplica regra de restrição territorial de cidade [2]
                 const inputCidade = document.getElementById('input-cidade');
                 if (data.cidadeAtuacao && data.cidadeAtuacao !== 'TODAS') {
                     inputCidade.value = data.cidadeAtuacao;
-                    inputCidade.disabled = true; // Trava o campo para evitar desvios [2]
+                    inputCidade.disabled = true; 
                     inputCidade.style.background = '#1e293b';
                     inputCidade.style.color = '#94a3b8';
                     inputCidade.style.cursor = 'not-allowed';
                 } else {
-                    // Libera campo para busca livre caso tenha acesso total [2]
                     inputCidade.disabled = false;
                     inputCidade.style.background = '#0f172a';
                     inputCidade.style.color = 'white';
@@ -499,33 +514,21 @@ function delay(ms) {
 function limparEnderecoParaGeocodificacao(endereco) {
     if (!endereco) return "";
     let limpo = address => address.toUpperCase()
-        .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove acentos
-        
-        // 1. Remove qualquer texto explicativo/bairro entre parênteses
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "") 
         .replace(/\s*\([^)]*\)/g, "")
-        
-        // 2. EXPANSÃO DE SIGLAS DE TELEFONIA (Garante que o Nominatim encontre os logradouros)
-        .replace(/\bV\b/g, "VIA")                       // V -> VIA (ex: V AGUINALDO)
-        .replace(/\bCD\b/g, "CONDE")                     // CD -> CONDE (ex: R CD ZEPELIN)
-        .replace(/\bSTOS\b/g, "SANTOS")                  // STOS -> SANTOS
-        .replace(/\bPRES\b/g, "PRESIDENTE")              // PRES -> PRESIDENTE
+        .replace(/\bV\b/g, "VIA")                       
+        .replace(/\bCD\b/g, "CONDE")                     
+        .replace(/\bSTOS\b/g, "SANTOS")                  
+        .replace(/\bPRES\b/g, "PRESIDENTE")              
         .replace(/\bSTO\b/g, "SANTO")
         .replace(/\bSTA\b/g, "SANTA")
-        .replace(/^R\b/g, "RUA")                        // R -> RUA (no início)
-        .replace(/^AV\b/g, "AVENIDA")                    // AV -> AVENIDA (no início)
-        
-        // 3. REMOÇÃO DE COMPLEMENTOS AMPLIADA: Remove termos e qualquer informação após eles no final
+        .replace(/^R\b/g, "RUA")                        
+        .replace(/^AV\b/g, "AVENIDA")                    
         .replace(/\s*\b(CASA|FUNDO|FUNDOS|FD|FDS|FTE|FT|F\d+|FRENTE|SOBRADO|TERREO|ALTOS|APTO|APT|AP|BLOCO|BL|SALA|SL|LOJA|LJ|PAV|PAVIMENTO|ANDAR)\b.*$/gi, "")
-        
-        // 4. Remove siglas de quadra e lote de forma limpa
         .replace(/\b(QD|QUADRA)\s*\d*\b/gi, "")
         .replace(/\b(LT|LOTE)\s*\d*\b/gi, "")
-        
-        // 5. Normaliza hifens órfãos seguidos do número do imóvel (ex: "790 - F1" -> "790")
         .replace(/\s*-\s*(\d+)/g, " $1")
-        .replace(/\s*-\s*$/g, "") // Remove hífen órfão no final
-        
-        // 6. Limpa sobras de pontuação e espaços múltiplos
+        .replace(/\s*-\s*$/g, "") 
         .replace(/,\s*,/g, ",")
         .replace(/,\s*$/g, "")
         .replace(/\s+/g, " ")
@@ -547,11 +550,11 @@ function normalizarInputCidade(val) {
 function normalizarBairro(b) {
     if (!b) return "";
     return b.normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "") // Remove acentos
+            .replace(/[\u0300-\u036f]/g, "") 
             .toUpperCase()
-            .replace(/\bJD\b/g, "JARDIM") // Normaliza abreviações
+            .replace(/\bJD\b/g, "JARDIM") 
             .replace(/\bVILAS\b/g, "VILA")
-            .replace(/[^A-Z0-9\s]/g, "") // Limpa pontuações
+            .replace(/[^A-Z0-9\s]/g, "") 
             .replace(/\s+/g, " ")
             .trim();
 }
@@ -1858,21 +1861,22 @@ async function salvarReversaoFinal(contratoId) {
 }
 
 // ==========================================
-// --- SISTEMA DO MAPA GERAL DO BACKLOG COM FILTRO LATERAL ---
+// --- SISTEMA DO MAPA GERAL DO BACKLOG ---
 // ==========================================
 
-// --- GERADOR DOS CHECKBOXES DO PAINEL LATERAL DO MAPA (TODOS SELECIONADOS DE INÍCIO) ---
+// --- COMPATIBILIDADE E RETORNO DAS SAFRAS TOTAIS DISPONÍVEIS ---
+function obterTodasSafrasDisponiveis() {
+    const safrasExistentesNoDb = [...new Set(todosContratosOrdenados.map(c => c.safra || c.mes_safra || c.safra_mes || c.mes || c.safraDesc).filter(Boolean))];
+    return [...new Set([...listaSafrasOpcoes, ...safrasExistentesNoDb])];
+}
+
+// --- MONTA OS CHECKBOXES DO PAINEL DE FILTRO ---
 function montarPainelFiltroSafraMapa() {
     const container = document.getElementById('lista-checkboxes-safra-mapa');
     if (!container) return;
 
     container.innerHTML = "";
-
-    // Coleta todas as safras presentes nos contratos carregados
-    const safrasExistentesNoDb = [...new Set(todosContratosOrdenados.map(c => c.safra || c.mes_safra || c.safra_mes).filter(Boolean))];
-    
-    // Une as opções padrão com qualquer outra variação vinda do banco
-    const safrasParaExibir = [...new Set([...listaSafrasOpcoes, ...safrasExistentesNoDb])];
+    const safrasParaExibir = obterTodasSafrasDisponiveis();
 
     safrasParaExibir.forEach(safraNome => {
         const itemLabel = document.createElement('label');
@@ -1888,7 +1892,7 @@ function montarPainelFiltroSafraMapa() {
         chk.type = "checkbox";
         chk.value = safraNome;
         chk.className = "chk-safra-mapa-item";
-        chk.checked = true; // --- REGRA SOLICITADA: Todos vêm marcados de início ---
+        chk.checked = true; // --- Todos ativos por padrão ao abrir ---
         chk.onchange = () => aoAlterarCheckboxIndividualMapa();
 
         itemLabel.appendChild(chk);
@@ -1898,18 +1902,58 @@ function montarPainelFiltroSafraMapa() {
 
     const chkTodos = document.getElementById('chk-mapa-safra-todos');
     if (chkTodos) chkTodos.checked = true;
+
+    atualizarTextoBotaoFiltro(safrasParaExibir.length, safrasParaExibir.length);
 }
 
-// --- CONTROLE DE SELEÇÃO: MARCAR/DESMARCAR TODOS ---
+// --- ALTERNA VISIBILIDADE DO PAINEL DO FILTRO (EXPANDE/RECOLHE) ---
+function toggleFiltroMapa(forceState) {
+    const painel = document.getElementById('painel-filtro-conteudo-mapa');
+    const icone = document.getElementById('icone-btn-filtro-mapa');
+    if (!painel) return;
+
+    const estaAberto = painel.style.display === "block";
+    const novoEstado = forceState !== undefined ? forceState : !estaAberto;
+
+    if (novoEstado) {
+        painel.style.display = "block";
+        if (icone) icone.textContent = "▲";
+    } else {
+        painel.style.display = "none";
+        if (icone) icone.textContent = "▼";
+    }
+}
+
+// --- ATUALIZA RÓTULO DO BOTÃO DE FILTRO ---
+function atualizarTextoBotaoFiltro(qtdSelecionada, qtdTotal) {
+    const labelBtn = document.getElementById('label-btn-filtro-mapa');
+    if (!labelBtn) return;
+
+    if (qtdSelecionada === qtdTotal) {
+        labelBtn.textContent = `📅 Filtrar Meses (${qtdTotal})`;
+    } else if (qtdSelecionada === 0) {
+        labelBtn.textContent = `📅 Nenhum Mês Selecionado`;
+    } else if (qtdSelecionada === 1) {
+        const selecionado = document.querySelector('.chk-safra-mapa-item:checked');
+        labelBtn.textContent = `📅 ${selecionado ? selecionado.value : '1 Mês'}`;
+    } else {
+        labelBtn.textContent = `📅 Safras (${qtdSelecionada}/${qtdTotal})`;
+    }
+}
+
+// --- CONTROLE DE SELEÇÃO "MARCAR/DESMARCAR TODOS" ---
 function alternarTodosFiltrosMapa(marcado) {
     const checkboxes = document.querySelectorAll('.chk-safra-mapa-item');
     checkboxes.forEach(chk => {
         chk.checked = marcado;
     });
+
+    const totalSafras = checkboxes.length;
+    atualizarTextoBotaoFiltro(marcado ? totalSafras : 0, totalSafras);
     atualizarMarcadoresMapa();
 }
 
-// --- ATUALIZA STATUS DO "SELECIONAR TODOS" CONFORME CLIQUE INDIVIDUAL ---
+// --- ATUALIZA STATUS INDIVIDUAL AO CLICAR NOS CHECKBOXES ---
 function aoAlterarCheckboxIndividualMapa() {
     const checkboxes = Array.from(document.querySelectorAll('.chk-safra-mapa-item'));
     const chkTodos = document.getElementById('chk-mapa-safra-todos');
@@ -1917,30 +1961,56 @@ function aoAlterarCheckboxIndividualMapa() {
     const todosMarcados = checkboxes.every(c => c.checked);
     if (chkTodos) chkTodos.checked = todosMarcados;
 
+    const selecionados = checkboxes.filter(c => c.checked);
+    atualizarTextoBotaoFiltro(selecionados.length, checkboxes.length);
+
     atualizarMarcadoresMapa();
 }
 
-// --- RETORNA AS SAFRAS SELECIONADAS NO PAINEL LATERAL ---
+// --- RETORNA LISTA DAS SAFRAS SELECIONADAS ---
 function obterSafrasSelecionadasMapa() {
     const checkboxes = document.querySelectorAll('.chk-safra-mapa-item:checked');
     return Array.from(checkboxes).map(c => c.value);
 }
 
-// --- COMPARAÇÃO ROBUSTA DE SAFRA DE UM CONTRATO ---
-function contratoPertenceASafrasSelecionadas(contrato, safrasSelecionadas) {
+// --- COMPARAÇÃO RIGOROSA E RESPONSIVA DA SAFRA DO CONTRATO ---
+function contratoPertenceASafrasSelecionadas(contrato, safrasSelecionadas, todasSafrasDisponiveis) {
     if (!safrasSelecionadas || safrasSelecionadas.length === 0) return false;
 
-    const valSafraRaw = String(contrato.safra || contrato.mes_safra || contrato.safra_mes || "").trim().toLowerCase();
-    if (!valSafraRaw) return true; // Exibe caso não tenha safra especificada para não perder do mapa
+    // Se todos os meses estiverem selecionados
+    if (safrasSelecionadas.length >= todasSafrasDisponiveis.length) return true;
+
+    // Obtém o campo de safra do contrato
+    const valSafra = String(
+        contrato.safra || 
+        contrato.mes_safra || 
+        contrato.safra_mes || 
+        contrato.mes || 
+        contrato.safraDesc || 
+        ""
+    ).trim();
+
+    // Se o contrato não tiver informação de safra e o filtro for específico de 1 ou alguns meses, descarta do mapa
+    if (!valSafra) return false;
+
+    const valSafraLower = valSafra.toLowerCase();
+    const numContrato = valSafra.replace(/\D/g, ''); 
 
     return safrasSelecionadas.some(safraFiltro => {
         const safraFiltroLower = safraFiltro.trim().toLowerCase();
-        if (valSafraRaw === safraFiltroLower) return true;
 
-        // Compara por número bruto do mês (ex: "1" em "1º mês")
-        const numContrato = valSafraRaw.replace(/\D/g, '');
+        // 1. Comparação exata ou de inclusão direta (ex: "1º mês")
+        if (valSafraLower === safraFiltroLower || valSafraLower.includes(safraFiltroLower) || safraFiltroLower.includes(valSafraLower)) {
+            return true;
+        }
+
+        // 2. Comparação estrita por número do mês (ex: número "1" de "1º mês" com número "1")
         const numFiltro = safraFiltroLower.replace(/\D/g, '');
-        return (numContrato && numFiltro && numContrato === numFiltro);
+        if (numContrato && numFiltro && parseInt(numContrato, 10) === parseInt(numFiltro, 10)) {
+            return true;
+        }
+
+        return false;
     });
 }
 
@@ -1951,13 +2021,14 @@ function abrirMapaBacklog() {
         return;
     }
 
-    // 1. Monta os checkboxes da lateral com TODOS selecionados de início
+    // Garante que o painel flutuante inicie recolhido
+    toggleFiltroMapa(false);
+
+    // Monta a lista do filtro com todos selecionados
     montarPainelFiltroSafraMapa();
 
-    // 2. Exibe o modal
     document.getElementById('modal-mapa-backlog').style.display = 'block';
 
-    // 3. Aguarda renderização no DOM antes de inicializar o Leaflet
     setTimeout(() => {
         inicializarMapaLeaflet();
     }, 250);
@@ -1965,6 +2036,7 @@ function abrirMapaBacklog() {
 
 // --- FECHA O MODAL DO MAPA ---
 function fecharMapaBacklog() {
+    toggleFiltroMapa(false);
     document.getElementById('modal-mapa-backlog').style.display = 'none';
 }
 
@@ -1985,20 +2057,38 @@ function inicializarMapaLeaflet() {
     atualizarMarcadoresMapa();
 }
 
-// --- ATUALIZA OS MARCADORES DO MAPA CONFORME OS MESES FILTRADOS ---
+// --- ATUALIZA OS MARCADORES DO MAPA E OS CARDS ESTATÍSTICOS ---
 function atualizarMarcadoresMapa() {
     if (!markersGroup || !mapaBacklogInstance) return;
 
     markersGroup.clearLayers();
 
     const safrasSelecionadas = obterSafrasSelecionadasMapa();
+    const todasSafrasDisponiveis = obterTodasSafrasDisponiveis();
 
-    // Filtra contratos por geocodificação válida E pelo mês safra selecionado na lateral
+    // Filtra rigorosamente por coordenadas válidas e pelo mês safra selecionado
     const contratosFiltradosNoMapa = todosContratosOrdenados.filter(c => {
-        const temGpsValido = (c.lat !== null && c.lon !== null && c.lat !== 1.0);
-        const atendeSafra = contratoPertenceASafrasSelecionadas(c, safrasSelecionadas);
+        const temGpsValido = (c.lat !== null && c.lon !== null && c.lat !== 1.0 && !isNaN(parseFloat(c.lat)) && !isNaN(parseFloat(c.lon)));
+        const atendeSafra = contratoPertenceASafrasSelecionadas(c, safrasSelecionadas, todasSafrasDisponiveis);
         return temGpsValido && atendeSafra;
     });
+
+    // --- CÁLCULO E ATUALIZAÇÃO DO CARD ESTATÍSTICO (OPÇÃO X INADIMPLÊNCIA) ---
+    let qtdOpcao = 0;
+    let qtdInad = 0;
+
+    contratosFiltradosNoMapa.forEach(c => {
+        const tipoUpper = String(c.tipo || '').toUpperCase();
+        if (tipoUpper.includes('OPC')) {
+            qtdOpcao++;
+        } else {
+            qtdInad++;
+        }
+    });
+
+    document.getElementById('stat-qtd-opcao').textContent = qtdOpcao;
+    document.getElementById('stat-qtd-inad').textContent = qtdInad;
+    document.getElementById('stat-qtd-total').textContent = contratosFiltradosNoMapa.length;
 
     const bounds = [];
 
@@ -2024,7 +2114,8 @@ function atualizarMarcadoresMapa() {
         const cLon = parseFloat(c.lon);
         bounds.push([cLat, cLon]);
 
-        const markerColor = c.tipo.includes('OPC') ? '#2563eb' : '#ef4444';
+        const tipoUpper = String(c.tipo || '').toUpperCase();
+        const markerColor = tipoUpper.includes('OPC') ? '#2563eb' : '#ef4444';
 
         const contractMarker = L.circleMarker([cLat, cLon], {
             color: markerColor,
@@ -2034,7 +2125,7 @@ function atualizarMarcadoresMapa() {
             weight: 2
         }).addTo(markersGroup);
 
-        const safraExibicao = c.safra || c.mes_safra || c.safra_mes || "Não informada";
+        const safraExibicao = c.safra || c.mes_safra || c.safra_mes || c.mes || c.safraDesc || "Não informada";
 
         const popHTML = `
             <div style="color: #0f172a; font-family: sans-serif; font-size: 13px; min-width: 180px;">
@@ -2049,7 +2140,7 @@ function atualizarMarcadoresMapa() {
         contractMarker.bindPopup(popHTML);
     });
 
-    // 3. Enquadramento da Câmera
+    // 3. Enquadramento Automático da Câmera
     if (localizacaoTecnico) {
         mapaBacklogInstance.setView([localizacaoTecnico.latitude, localizacaoTecnico.longitude], 14);
     } else if (bounds.length > 0) {
