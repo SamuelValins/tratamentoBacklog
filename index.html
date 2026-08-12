@@ -76,6 +76,7 @@ input, select, textarea {
     font-family: inherit;
     font-size: 14px;
 }
+
 select[multiple] {
     height: 110px;
     overflow-y: auto;
@@ -186,6 +187,42 @@ button {
     overflow-y: auto;
     padding: 20px;
     box-sizing: border-box;
+}
+
+/* --- RESET RIGOROSO DE SOBREPOSIÇÃO PARA O PAINEL DE FILTROS DO MAPA --- */
+#painel-filtro-conteudo-mapa * {
+    box-sizing: border-box !important;
+}
+#painel-filtro-conteudo-mapa label {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 10px !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 4px 0 !important;
+    cursor: pointer !important;
+    text-align: left !important;
+}
+#painel-filtro-conteudo-mapa input[type="checkbox"] {
+    width: 16px !important;
+    height: 16px !important;
+    min-width: 16px !important;
+    min-height: 16px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    background: transparent !important;
+    cursor: pointer !important;
+    flex-shrink: 0 !important;
+    display: inline-block !important;
+}
+#painel-filtro-conteudo-mapa span {
+    font-size: 13px !important;
+    color: #cbd5e1 !important;
+    white-space: nowrap !important;
+    text-align: left !important;
 }
 </style>
 </head>
@@ -299,7 +336,7 @@ button {
     </div>
 </div>
 
-<!-- Modal do Mapa do Backlog Geral (COM OVERLAY FLUTUANTE EXPANSÍVEL E STAT CARDS) -->
+<!-- Modal do Mapa do Backlog Geral -->
 <div id="modal-mapa-backlog" class="modal-overlay" style="z-index: 10005;">
     <div style="background: #1e293b; max-width: 1050px; width: 100%; height: 90vh; display: flex; flex-direction: column; padding: 20px; border-radius: 10px; border: 1px solid #334155; position: relative; margin: 20px auto; box-sizing: border-box;">
         
@@ -307,48 +344,48 @@ button {
         
         <h3 style="margin-top: 0; color: #38bdf8; margin-bottom: 12px; padding-right: 40px;">🗺️ Mapa Geral de Contratos do Backlog</h3>
         
-        <!-- CARD RESUMO ESTATÍSTICO DE QUANTIDADES (OPÇÃO X INADIMPLÊNCIA) -->
-        <div id="card-resumo-mapa" style="display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap;">
-            <div style="flex: 1; min-width: 130px; background: rgba(30, 58, 138, 0.6); border: 1px solid #2563eb; padding: 8px 12px; border-radius: 8px; text-align: center; box-sizing: border-box;">
-                <span style="font-size: 11px; color: #93c5fd; display: block; font-weight: bold;">🔹 OPÇÃO</span>
-                <strong id="stat-qtd-opcao" style="font-size: 18px; color: #ffffff;">0</strong>
-            </div>
-            <div style="flex: 1; min-width: 130px; background: rgba(127, 29, 29, 0.6); border: 1px solid #ef4444; padding: 8px 12px; border-radius: 8px; text-align: center; box-sizing: border-box;">
-                <span style="font-size: 11px; color: #fca5a5; display: block; font-weight: bold;">🔴 INADIMPLÊNCIA</span>
-                <strong id="stat-qtd-inad" style="font-size: 18px; color: #ffffff;">0</strong>
-            </div>
-            <div style="flex: 1; min-width: 130px; background: rgba(15, 23, 42, 0.8); border: 1px solid #334155; padding: 8px 12px; border-radius: 8px; text-align: center; box-sizing: border-box;">
-                <span style="font-size: 11px; color: #38bdf8; display: block; font-weight: bold;">📍 TOTAL NO MAPA</span>
-                <strong id="stat-qtd-total" style="font-size: 18px; color: #38bdf8;">0</strong>
-            </div>
-        </div>
-
-        <!-- CONTAINER DO MAPA COM OVERLAY FLUTUANTE DO FILTRO -->
+        <!-- CONTAINER DO MAPA COM OVERLAYS FLUTUANTES -->
         <div style="flex: 1; height: 100%; position: relative; border-radius: 8px; overflow: hidden; border: 1px solid #334155;">
             
-            <!-- BOTÃO FLUTUANTE E MENU EXPANSÍVEL DO FILTRO -->
-            <div id="wrapper-filtro-flutuante" style="position: absolute; top: 12px; right: 12px; z-index: 1000; max-width: 270px; width: calc(100% - 24px);">
+            <!-- STAT CARD ESTATÍSTICO FLUTUANTE (CANTO SUPERIOR ESQUERDO) -->
+            <div id="card-resumo-mapa" style="position: absolute; top: 12px; left: 12px; z-index: 1000; display: flex; gap: 6px; pointer-events: none; flex-wrap: wrap;">
+                <div style="background: rgba(15, 23, 42, 0.9); border: 1px solid #2563eb; padding: 6px 10px; border-radius: 8px; text-align: center; backdrop-filter: blur(4px);">
+                    <span style="font-size: 10px; color: #93c5fd; display: block; font-weight: bold;">🔹 OPÇÃO</span>
+                    <strong id="stat-qtd-opcao" style="font-size: 15px; color: #ffffff;">0</strong>
+                </div>
+                <div style="background: rgba(15, 23, 42, 0.9); border: 1px solid #ef4444; padding: 6px 10px; border-radius: 8px; text-align: center; backdrop-filter: blur(4px);">
+                    <span style="font-size: 10px; color: #fca5a5; display: block; font-weight: bold;">🔴 INADIMPLÊNCIA</span>
+                    <strong id="stat-qtd-inad" style="font-size: 15px; color: #ffffff;">0</strong>
+                </div>
+                <div style="background: rgba(15, 23, 42, 0.9); border: 1px solid #38bdf8; padding: 6px 10px; border-radius: 8px; text-align: center; backdrop-filter: blur(4px);">
+                    <span style="font-size: 10px; color: #38bdf8; display: block; font-weight: bold;">📍 TOTAL</span>
+                    <strong id="stat-qtd-total" style="font-size: 15px; color: #38bdf8;">0</strong>
+                </div>
+            </div>
+
+            <!-- BOTÃO FLUTUANTE E MENU EXPANSÍVEL DO FILTRO (CANTO SUPERIOR DIREITO) -->
+            <div id="wrapper-filtro-flutuante" style="position: absolute; top: 12px; right: 12px; z-index: 1000; width: 220px; max-width: calc(100% - 24px);">
                 
-                <button type="button" id="btn-toggle-filtro-mapa" onclick="toggleFiltroMapa()" style="background: #1e293b; color: #38bdf8; border: 1px solid #38bdf8; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; align-items: center; width: 100%; box-shadow: 0 4px 12px rgba(0,0,0,0.6);">
+                <button type="button" id="btn-toggle-filtro-mapa" onclick="toggleFiltroMapa()" style="background: #1e293b; color: #38bdf8; border: 1px solid #38bdf8; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; align-items: center; width: 100%; box-shadow: 0 4px 12px rgba(0,0,0,0.8);">
                     <span id="label-btn-filtro-mapa">📅 Filtrar Meses</span>
                     <span id="icone-btn-filtro-mapa" style="font-size: 10px; margin-left: 8px;">▼</span>
                 </button>
 
-                <!-- CONTEÚDO EXPANSÍVEL (RECOLHIDO POR PADRÃO) -->
-                <div id="painel-filtro-conteudo-mapa" style="display: none; background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px; margin-top: 6px; max-height: 280px; overflow-y: auto; box-shadow: 0 8px 20px rgba(0,0,0,0.8); box-sizing: border-box;">
+                <!-- CONTEÚDO EXPANSÍVEL DO FILTRO DO MAPA -->
+                <div id="painel-filtro-conteudo-mapa" style="display: none; background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px; margin-top: 6px; max-height: 280px; overflow-y: auto; box-shadow: 0 8px 20px rgba(0,0,0,0.9); box-sizing: border-box;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px solid #334155; padding-bottom: 6px;">
                         <span style="font-size: 12px; font-weight: bold; color: #38bdf8;">Mês Safra</span>
                         <button type="button" onclick="toggleFiltroMapa(false)" style="background: transparent; color: #ef4444; border: none; padding: 0; width: auto; font-size: 12px; cursor: pointer; font-weight: bold;">Fechar ✕</button>
                     </div>
 
-                    <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: bold; color: #22c55e; margin-top: 0; cursor: pointer; user-select: none;">
+                    <div id="row-mapa-safra-todos" style="display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: flex-start !important; gap: 10px !important; width: 100% !important; margin: 0 !important; cursor: pointer !important;">
                         <input type="checkbox" id="chk-mapa-safra-todos" checked onchange="alternarTodosFiltrosMapa(this.checked)">
-                        [SELECIONAR TODOS]
-                    </label>
+                        <span style="font-size: 12px !important; font-weight: bold !important; color: #22c55e !important; white-space: nowrap !important;">[SELECIONAR TODOS]</span>
+                    </div>
                     <hr style="border: 0; border-top: 1px dashed #334155; margin: 8px 0; width: 100%;">
                     
                     <div id="lista-checkboxes-safra-mapa" style="display: flex; flex-direction: column; gap: 6px;">
-                        <!-- Checkboxes dos meses gerados dinamicamente -->
+                        <!-- Checkboxes gerados dinamicamente com alinhamento perfeito -->
                     </div>
                 </div>
             </div>
@@ -536,7 +573,7 @@ function limparEnderecoParaGeocodificacao(endereco) {
     return limpo(endereco);
 }
 
-// --- NORMALIZADOR DE ENTRADA DE CIDADE (SEM ACENTOS E MAIÚSCULAS) ---
+// --- NORMALIZADOR DE ENTRADA DE CIDADE ---
 function normalizarInputCidade(val) {
     if (!val) return "";
     return val.normalize("NFD")
@@ -577,14 +614,14 @@ async function obterBairroTecnico(lat, lon) {
     return "";
 }
 
-// --- AUXILIAR DE VALIDAÇÃO DE CENTROIDE (EVITA COORDENADAS FALSAS) ---
+// --- AUXILIAR DE VALIDAÇÃO DE CENTROIDE ---
 function verificarSeEhCentroid(res) {
     const tipo = res.type || "";
     const classVal = res.class || "";
     return (classVal === "place" && (tipo === "city" || tipo === "town" || tipo === "municipality" || tipo === "state"));
 }
 
-// --- GEOCODIFICADOR COMPLETO COM AUTO-SKIP E PERSISTÊNCIA EM SEGUNDO PLANO ---
+// --- GEOCODIFICADOR COMPLETO COM AUTO-SKIP ---
 async function geocodificarFila(contratos) {
     const total = contratos.length;
     const btnCarregar = document.getElementById('btn-carregar');
@@ -1864,13 +1901,60 @@ async function salvarReversaoFinal(contratoId) {
 // --- SISTEMA DO MAPA GERAL DO BACKLOG ---
 // ==========================================
 
+// --- EXTRATOR UNIFICADO DE SAFRA DO CONTRATO (CASE-INSENSITIVE) ---
+function extrairSafraDoContrato(c) {
+    if (!c || typeof c !== 'object') return "";
+    for (let k in c) {
+        const kLower = k.toLowerCase().replace(/[^a-z]/g, '');
+        if (kLower === 'safra' || kLower === 'messafra' || kLower === 'saframes' || kLower === 'safradesc' || kLower === 'mes' || kLower === 'periodo') {
+            const val = c[k];
+            if (val !== null && val !== undefined && String(val).trim() !== "") {
+                return String(val).trim();
+            }
+        }
+    }
+    return "";
+}
+
+// --- EXTRATOR UNIFICADO DE COORDENADAS DO CONTRATO ---
+function extrairCoordenadasContrato(c) {
+    if (!c || typeof c !== 'object') return null;
+
+    let latVal = null;
+    let lonVal = null;
+
+    for (let k in c) {
+        const kLower = k.toLowerCase().replace(/[^a-z]/g, '');
+        if (kLower === 'lat' || kLower === 'latitude' || kLower === 'coordy' || kLower === 'y') {
+            if (c[k] !== null && c[k] !== undefined && c[k] !== "") {
+                latVal = c[k];
+            }
+        }
+        if (kLower === 'lon' || kLower === 'lng' || kLower === 'longitude' || kLower === 'coordx' || kLower === 'x') {
+            if (c[k] !== null && c[k] !== undefined && c[k] !== "") {
+                lonVal = c[k];
+            }
+        }
+    }
+
+    if (latVal === null || lonVal === null) return null;
+
+    const lat = parseFloat(latVal);
+    const lon = parseFloat(lonVal);
+
+    if (!isNaN(lat) && !isNaN(lon) && Math.abs(lat) > 0.0001 && Math.abs(lon) > 0.0001 && lat !== 1.0 && lon !== 1.0) {
+        return { lat, lon };
+    }
+    return null;
+}
+
 // --- COMPATIBILIDADE E RETORNO DAS SAFRAS TOTAIS DISPONÍVEIS ---
 function obterTodasSafrasDisponiveis() {
-    const safrasExistentesNoDb = [...new Set(todosContratosOrdenados.map(c => c.safra || c.mes_safra || c.safra_mes || c.mes || c.safraDesc).filter(Boolean))];
+    const safrasExistentesNoDb = [...new Set(todosContratosOrdenados.map(c => extrairSafraDoContrato(c)).filter(Boolean))];
     return [...new Set([...listaSafrasOpcoes, ...safrasExistentesNoDb])];
 }
 
-// --- MONTA OS CHECKBOXES DO PAINEL DE FILTRO ---
+// --- MONTA OS CHECKBOXES DO PAINEL DE FILTRO DE FORMA RIGOROSA ---
 function montarPainelFiltroSafraMapa() {
     const container = document.getElementById('lista-checkboxes-safra-mapa');
     if (!container) return;
@@ -1879,25 +1963,31 @@ function montarPainelFiltroSafraMapa() {
     const safrasParaExibir = obterTodasSafrasDisponiveis();
 
     safrasParaExibir.forEach(safraNome => {
-        const itemLabel = document.createElement('label');
-        itemLabel.style.display = "flex";
-        itemLabel.style.alignItems = "center";
-        itemLabel.style.gap = "8px";
-        itemLabel.style.fontSize = "12px";
-        itemLabel.style.color = "#cbd5e1";
-        itemLabel.style.cursor = "pointer";
-        itemLabel.style.userSelect = "none";
+        const itemRow = document.createElement('div');
+        itemRow.style.cssText = "display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: flex-start !important; gap: 10px !important; width: 100% !important; margin: 0 !important; padding: 3px 0 !important; cursor: pointer !important;";
 
         const chk = document.createElement('input');
         chk.type = "checkbox";
         chk.value = safraNome;
         chk.className = "chk-safra-mapa-item";
-        chk.checked = true; // --- Todos ativos por padrão ao abrir ---
+        chk.checked = true;
+        chk.style.cssText = "width: 16px !important; height: 16px !important; min-width: 16px !important; min-height: 16px !important; margin: 0 !important; padding: 0 !important; border: 1px solid #334155 !important; background: #0f172a !important; cursor: pointer !important; flex-shrink: 0 !important; display: inline-block !important; vertical-align: middle !important;";
         chk.onchange = () => aoAlterarCheckboxIndividualMapa();
 
-        itemLabel.appendChild(chk);
-        itemLabel.appendChild(document.createTextNode(safraNome));
-        container.appendChild(itemLabel);
+        const txt = document.createElement('span');
+        txt.style.cssText = "font-size: 13px !important; color: #cbd5e1 !important; white-space: nowrap !important; line-height: 1.2 !important; font-weight: normal !important; text-align: left !important;";
+        txt.textContent = safraNome;
+
+        itemRow.onclick = (e) => {
+            if (e.target !== chk) {
+                chk.checked = !chk.checked;
+                aoAlterarCheckboxIndividualMapa();
+            }
+        };
+
+        itemRow.appendChild(chk);
+        itemRow.appendChild(txt);
+        container.appendChild(itemRow);
     });
 
     const chkTodos = document.getElementById('chk-mapa-safra-todos');
@@ -1906,7 +1996,7 @@ function montarPainelFiltroSafraMapa() {
     atualizarTextoBotaoFiltro(safrasParaExibir.length, safrasParaExibir.length);
 }
 
-// --- ALTERNA VISIBILIDADE DO PAINEL DO FILTRO (EXPANDE/RECOLHE) ---
+// --- ALTERNA VISIBILIDADE DO PAINEL DO FILTRO ---
 function toggleFiltroMapa(forceState) {
     const painel = document.getElementById('painel-filtro-conteudo-mapa');
     const icone = document.getElementById('icone-btn-filtro-mapa');
@@ -1977,20 +2067,9 @@ function obterSafrasSelecionadasMapa() {
 function contratoPertenceASafrasSelecionadas(contrato, safrasSelecionadas, todasSafrasDisponiveis) {
     if (!safrasSelecionadas || safrasSelecionadas.length === 0) return false;
 
-    // Se todos os meses estiverem selecionados
     if (safrasSelecionadas.length >= todasSafrasDisponiveis.length) return true;
 
-    // Obtém o campo de safra do contrato
-    const valSafra = String(
-        contrato.safra || 
-        contrato.mes_safra || 
-        contrato.safra_mes || 
-        contrato.mes || 
-        contrato.safraDesc || 
-        ""
-    ).trim();
-
-    // Se o contrato não tiver informação de safra e o filtro for específico de 1 ou alguns meses, descarta do mapa
+    const valSafra = extrairSafraDoContrato(contrato);
     if (!valSafra) return false;
 
     const valSafraLower = valSafra.toLowerCase();
@@ -1999,12 +2078,10 @@ function contratoPertenceASafrasSelecionadas(contrato, safrasSelecionadas, todas
     return safrasSelecionadas.some(safraFiltro => {
         const safraFiltroLower = safraFiltro.trim().toLowerCase();
 
-        // 1. Comparação exata ou de inclusão direta (ex: "1º mês")
         if (valSafraLower === safraFiltroLower || valSafraLower.includes(safraFiltroLower) || safraFiltroLower.includes(valSafraLower)) {
             return true;
         }
 
-        // 2. Comparação estrita por número do mês (ex: número "1" de "1º mês" com número "1")
         const numFiltro = safraFiltroLower.replace(/\D/g, '');
         if (numContrato && numFiltro && parseInt(numContrato, 10) === parseInt(numFiltro, 10)) {
             return true;
@@ -2021,10 +2098,7 @@ function abrirMapaBacklog() {
         return;
     }
 
-    // Garante que o painel flutuante inicie recolhido
     toggleFiltroMapa(false);
-
-    // Monta a lista do filtro com todos selecionados
     montarPainelFiltroSafraMapa();
 
     document.getElementById('modal-mapa-backlog').style.display = 'block';
@@ -2066,19 +2140,19 @@ function atualizarMarcadoresMapa() {
     const safrasSelecionadas = obterSafrasSelecionadasMapa();
     const todasSafrasDisponiveis = obterTodasSafrasDisponiveis();
 
-    // Filtra rigorosamente por coordenadas válidas e pelo mês safra selecionado
+    // Filtra rigorosamente por coordenadas válidas e pela safra selecionada
     const contratosFiltradosNoMapa = todosContratosOrdenados.filter(c => {
-        const temGpsValido = (c.lat !== null && c.lon !== null && c.lat !== 1.0 && !isNaN(parseFloat(c.lat)) && !isNaN(parseFloat(c.lon)));
+        const coords = extrairCoordenadasContrato(c);
         const atendeSafra = contratoPertenceASafrasSelecionadas(c, safrasSelecionadas, todasSafrasDisponiveis);
-        return temGpsValido && atendeSafra;
+        return coords !== null && atendeSafra;
     });
 
-    // --- CÁLCULO E ATUALIZAÇÃO DO CARD ESTATÍSTICO (OPÇÃO X INADIMPLÊNCIA) ---
+    // CÁLCULO E ATUALIZAÇÃO DO CARD ESTATÍSTICO
     let qtdOpcao = 0;
     let qtdInad = 0;
 
     contratosFiltradosNoMapa.forEach(c => {
-        const tipoUpper = String(c.tipo || '').toUpperCase();
+        const tipoUpper = String(c.tipo || c.Tipo || c.TIPO || '').toUpperCase();
         if (tipoUpper.includes('OPC')) {
             qtdOpcao++;
         } else {
@@ -2108,13 +2182,16 @@ function atualizarMarcadoresMapa() {
         userMarker.bindPopup("<b style='color:#0ea5e9;'>Minha Posição Atual 🚗</b>");
     }
 
-    // 2. Marcadores dos Contratos Filtrados no Mapa
+    // 2. Marcadores dos Contratos Filtrados
     contratosFiltradosNoMapa.forEach(c => {
-        const cLat = parseFloat(c.lat);
-        const cLon = parseFloat(c.lon);
+        const coords = extrairCoordenadasContrato(c);
+        if (!coords) return;
+
+        const cLat = coords.lat;
+        const cLon = coords.lon;
         bounds.push([cLat, cLon]);
 
-        const tipoUpper = String(c.tipo || '').toUpperCase();
+        const tipoUpper = String(c.tipo || c.Tipo || c.TIPO || '').toUpperCase();
         const markerColor = tipoUpper.includes('OPC') ? '#2563eb' : '#ef4444';
 
         const contractMarker = L.circleMarker([cLat, cLon], {
@@ -2125,7 +2202,7 @@ function atualizarMarcadoresMapa() {
             weight: 2
         }).addTo(markersGroup);
 
-        const safraExibicao = c.safra || c.mes_safra || c.safra_mes || c.mes || c.safraDesc || "Não informada";
+        const safraExibicao = extrairSafraDoContrato(c) || "Não informada";
 
         const popHTML = `
             <div style="color: #0f172a; font-family: sans-serif; font-size: 13px; min-width: 180px;">
@@ -2140,11 +2217,11 @@ function atualizarMarcadoresMapa() {
         contractMarker.bindPopup(popHTML);
     });
 
-    // 3. Enquadramento Automático da Câmera
-    if (localizacaoTecnico) {
+    // 3. Enquadramento Automático da Câmera por Marcadores
+    if (bounds.length > 0) {
+        mapaBacklogInstance.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
+    } else if (localizacaoTecnico) {
         mapaBacklogInstance.setView([localizacaoTecnico.latitude, localizacaoTecnico.longitude], 14);
-    } else if (bounds.length > 0) {
-        mapaBacklogInstance.fitBounds(bounds, { padding: [40, 40] });
     }
 }
 
