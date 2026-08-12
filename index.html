@@ -1962,12 +1962,12 @@ async function salvarReversaoFinal(contratoId) {
 // --- SISTEMA DO MAPA GERAL DO BACKLOG ---
 // ==========================================
 
-// --- EXTRATOR UNIFICADO DE SAFRA DO CONTRATO (CASE-INSENSITIVE) ---
+// --- EXTRATOR UNIFICADO DE SAFRA DO CONTRATO ---
 function extrairSafraDoContrato(c) {
     if (!c || typeof c !== 'object') return "";
     for (let k in c) {
-        const kLower = k.toLowerCase().replace(/[^a-z]/g, '');
-        if (kLower === 'safra' || kLower === 'messafra' || kLower === 'saframes' || kLower === 'safradesc' || kLower === 'mes' || kLower === 'periodo') {
+        const kLower = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (kLower === 'safra' || kLower === 'messafra' || kLower === 'saframes' || kLower === 'safradesc' || kLower === 'mes' || kLower === 'periodo' || kLower === 'safratabela') {
             const val = c[k];
             if (val !== null && val !== undefined && String(val).trim() !== "") {
                 return String(val).trim();
@@ -1975,6 +1975,20 @@ function extrairSafraDoContrato(c) {
         }
     }
     return "";
+}
+
+// --- NORMALIZADOR PADRONIZADO DE SAFRAS ---
+function normalizarSafra(val) {
+    if (val === null || val === undefined || String(val).trim() === "") {
+        return "Sem Safra";
+    }
+    const str = String(val).trim().toLowerCase();
+    const match = str.match(/\d+/);
+    if (match) {
+        const num = parseInt(match[0], 10);
+        return `${num}º mês`;
+    }
+    return str.toUpperCase();
 }
 
 // --- EXTRATOR UNIFICADO DE COORDENADAS DO CONTRATO ---
@@ -2011,11 +2025,17 @@ function extrairCoordenadasContrato(c) {
 
 // --- COMPATIBILIDADE E RETORNO DAS SAFRAS TOTAIS DISPONÍVEIS ---
 function obterTodasSafrasDisponiveis() {
-    const safrasExistentesNoDb = [...new Set(todosContratosOrdenados.map(c => extrairSafraDoContrato(c)).filter(Boolean))];
-    return [...new Set([...listaSafrasOpcoes, ...safrasExistentesNoDb])];
+    const safrasNoDb = todosContratosOrdenados.map(c => normalizarSafra(extrairSafraDoContrato(c)));
+    const setSafras = new Set([...listaSafrasOpcoes, ...safrasNoDb]);
+    
+    return Array.from(setSafras).sort((a, b) => {
+        const numA = (a.match(/\d+/) || [999])[0];
+        const numB = (b.match(/\d+/) || [999])[0];
+        return parseInt(numA, 10) - parseInt(numB, 10);
+    });
 }
 
-// --- MONTA OS CHECKBOXES DO PAINEL DE FILTRO DE FORMA RIGOROSA ---
+// --- MONTA OS CHECKBOXES DO PAINEL DE FILTRO SEM CONFLITO DE DUPLO CLIQUE ---
 function montarPainelFiltroSafraMapa() {
     const container = document.getElementById('lista-checkboxes-safra-mapa');
     if (!container) return;
@@ -2025,25 +2045,27 @@ function montarPainelFiltroSafraMapa() {
 
     safrasParaExibir.forEach(safraNome => {
         const itemRow = document.createElement('div');
-        itemRow.style.cssText = "display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: flex-start !important; gap: 10px !important; width: 100% !important; margin: 0 !important; padding: 3px 0 !important; cursor: pointer !important;";
+        itemRow.style.cssText = "display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: flex-start !important; gap: 10px !important; width: 100% !important; margin: 0 !important; padding: 4px 0 !important; cursor: pointer !important;";
 
         const chk = document.createElement('input');
         chk.type = "checkbox";
         chk.value = safraNome;
         chk.className = "chk-safra-mapa-item";
         chk.checked = true;
-        chk.style.cssText = "width: 16px !important; height: 16px !important; min-width: 16px !important; min-height: 16px !important; margin: 0 !important; padding: 0 !important; border: 1px solid #334155 !important; background: #0f172a !important; cursor: pointer !important; flex-shrink: 0 !important; display: inline-block !important; vertical-align: middle !important;";
-        chk.onchange = () => aoAlterarCheckboxIndividualMapa();
+        chk.style.cssText = "width: 18px !important; height: 18px !important; min-width: 18px !important; min-height: 18px !important; margin: 0 !important; padding: 0 !important; border: 1px solid #334155 !important; background: #0f172a !important; cursor: pointer !important; flex-shrink: 0 !important; display: inline-block !important; vertical-align: middle !important;";
+        
+        chk.onclick = (e) => {
+            e.stopPropagation();
+            aoAlterarCheckboxIndividualMapa();
+        };
 
         const txt = document.createElement('span');
         txt.style.cssText = "font-size: 13px !important; color: #cbd5e1 !important; white-space: nowrap !important; line-height: 1.2 !important; font-weight: normal !important; text-align: left !important;";
         txt.textContent = safraNome;
 
-        itemRow.onclick = (e) => {
-            if (e.target !== chk) {
-                chk.checked = !chk.checked;
-                aoAlterarCheckboxIndividualMapa();
-            }
+        itemRow.onclick = () => {
+            chk.checked = !chk.checked;
+            aoAlterarCheckboxIndividualMapa();
         };
 
         itemRow.appendChild(chk);
@@ -2124,32 +2146,14 @@ function obterSafrasSelecionadasMapa() {
     return Array.from(checkboxes).map(c => c.value);
 }
 
-// --- COMPARAÇÃO RIGOROSA E RESPONSIVA DA SAFRA DO CONTRATO ---
+// --- COMPARAÇÃO DIRETA E EXATA DA SAFRA DO CONTRATO ---
 function contratoPertenceASafrasSelecionadas(contrato, safrasSelecionadas, todasSafrasDisponiveis) {
     if (!safrasSelecionadas || safrasSelecionadas.length === 0) return false;
 
     if (safrasSelecionadas.length >= todasSafrasDisponiveis.length) return true;
 
-    const valSafra = extrairSafraDoContrato(contrato);
-    if (!valSafra) return false;
-
-    const valSafraLower = valSafra.toLowerCase();
-    const numContrato = valSafra.replace(/\D/g, ''); 
-
-    return safrasSelecionadas.some(safraFiltro => {
-        const safraFiltroLower = safraFiltro.trim().toLowerCase();
-
-        if (valSafraLower === safraFiltroLower || valSafraLower.includes(safraFiltroLower) || safraFiltroLower.includes(valSafraLower)) {
-            return true;
-        }
-
-        const numFiltro = safraFiltroLower.replace(/\D/g, '');
-        if (numContrato && numFiltro && parseInt(numContrato, 10) === parseInt(numFiltro, 10)) {
-            return true;
-        }
-
-        return false;
-    });
+    const safraNorm = normalizarSafra(extrairSafraDoContrato(contrato));
+    return safrasSelecionadas.includes(safraNorm);
 }
 
 // --- ABRE O MODAL E INICIALIZA O LEAFLET ---
@@ -2275,7 +2279,7 @@ function atualizarMarcadoresMapa() {
             weight: 2
         }).addTo(markersGroup);
 
-        const safraExibicao = extrairSafraDoContrato(c) || "Não informada";
+        const safraExibicao = normalizarSafra(extrairSafraDoContrato(c));
 
         const popHTML = `
             <div style="color: #0f172a; font-family: sans-serif; font-size: 13px; min-width: 180px;">
