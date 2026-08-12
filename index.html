@@ -1,3 +1,5 @@
+--- START OF FILE Paste August 12, 2026 - 3:10PM ---
+
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -186,6 +188,17 @@ button {
     padding: 20px;
     box-sizing: border-box;
 }
+
+/* Ajuste Responsivo do Painel Lateral do Mapa */
+@media (max-width: 650px) {
+    #container-mapa-com-filtro {
+        flex-direction: column !important;
+    }
+    #painel-filtro-mapa {
+        width: 100% !important;
+        max-height: 150px;
+    }
+}
 </style>
 </head>
 <body>
@@ -298,13 +311,33 @@ button {
     </div>
 </div>
 
-<!-- Modal do Mapa do Backlog Geral -->
+<!-- Modal do Mapa do Backlog Geral (COM PAINEL LATERAL DE FILTRO) -->
 <div id="modal-mapa-backlog" class="modal-overlay" style="z-index: 10005;">
-    <div style="background: #1e293b; max-width: 900px; width: 100%; height: 90vh; display: flex; flex-direction: column; padding: 20px; border-radius: 10px; border: 1px solid #334155; position: relative; margin: 20px auto; box-sizing: border-box;">
+    <div style="background: #1e293b; max-width: 1050px; width: 100%; height: 90vh; display: flex; flex-direction: column; padding: 20px; border-radius: 10px; border: 1px solid #334155; position: relative; margin: 20px auto; box-sizing: border-box;">
         <button style="position: absolute; top: 15px; right: 15px; background: #ef4444; color: white; border: none; font-weight: bold; width: 35px; height: 35px; border-radius: 50%; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 10006;" onclick="fecharMapaBacklog()">✕</button>
         <h3 style="margin-top: 0; color: #38bdf8; margin-bottom: 15px;">🗺️ Mapa Geral de Contratos do Backlog</h3>
-        <!-- Elemento onde o Leaflet será acoplado -->
-        <div id="mapa-backlog-leaflet" style="flex: 1; width: 100%; border-radius: 8px; border: 1px solid #334155; background: #0f172a;"></div>
+        
+        <!-- Container Flex contendo o Filtro Lateral e o Mapa Leaflet -->
+        <div id="container-mapa-com-filtro" style="display: flex; flex: 1; gap: 15px; overflow: hidden; position: relative;">
+            
+            <!-- Painel Lateral de Filtro por Safra -->
+            <div id="painel-filtro-mapa" style="width: 210px; min-width: 180px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px; display: flex; flex-direction: column; overflow-y: auto; box-sizing: border-box;">
+                <h4 style="margin: 0 0 10px 0; color: #38bdf8; font-size: 13px; border-bottom: 1px solid #334155; padding-bottom: 6px;">📅 Mês Safra</h4>
+                
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: bold; color: #22c55e; margin-top: 0; cursor: pointer; user-select: none;">
+                    <input type="checkbox" id="chk-mapa-safra-todos" checked onchange="alternarTodosFiltrosMapa(this.checked)">
+                    [SELECIONAR TODOS]
+                </label>
+                <hr style="border: 0; border-top: 1px dashed #334155; margin: 8px 0; width: 100%;">
+                
+                <div id="lista-checkboxes-safra-mapa" style="display: flex; flex-direction: column; gap: 6px;">
+                    <!-- Checkboxes dos meses gerados dinamicamente via JS -->
+                </div>
+            </div>
+
+            <!-- Elemento onde o Leaflet é acoplado -->
+            <div id="mapa-backlog-leaflet" style="flex: 1; height: 100%; border-radius: 8px; border: 1px solid #334155; background: #0f172a;"></div>
+        </div>
     </div>
 </div>
 
@@ -322,6 +355,12 @@ let todosContratosOrdenados = [];
 let indexExibicaoAtual = 0;
 let limiteExibicao = 30; // Valor dinâmico baseado no select-quantidade
 let contratosCarregadosTemporarios = []; // Armazena os contratos carregados da busca original
+
+// Lista Padrão de Safras disponíveis para o mapa
+const listaSafrasOpcoes = [
+    "1º mês", "2º mês", "3º mês", "4º mês", "5º mês", "6º mês",
+    "7º mês", "8º mês", "9º mês", "10º mês", "11º mês", "12º mês", "13º mês"
+];
 
 // Estados adicionais para Reversão no Histórico Local
 let fotosReversao = {};                // { contratoId: [ { base64: '...', equipamento: '...' } ] }
@@ -476,7 +515,6 @@ function limparEnderecoParaGeocodificacao(endereco) {
         .replace(/^AV\b/g, "AVENIDA")                    // AV -> AVENIDA (no início)
         
         // 3. REMOÇÃO DE COMPLEMENTOS AMPLIADA: Remove termos e qualquer informação após eles no final
-        // Limpa com precisão "CASA FRENTE", "FD 2", "FD", "CASA FUNDOS", "FUNDO", "FT", "BL 3", "F1", "F2", "BL 1000", etc.
         .replace(/\s*\b(CASA|FUNDO|FUNDOS|FD|FDS|FTE|FT|F\d+|FRENTE|SOBRADO|TERREO|ALTOS|APTO|APT|AP|BLOCO|BL|SALA|SL|LOJA|LJ|PAV|PAVIMENTO|ANDAR)\b.*$/gi, "")
         
         // 4. Remove siglas de quadra e lote de forma limpa
@@ -551,18 +589,16 @@ async function geocodificarFila(contratos) {
     for (let i = 0; i < total; i++) {
         const item = contratos[i];
         
-        // --- NOVO: Tenta capturar QUALQUER variação de propriedade de coordenada vinda do banco ---
         const latExistente = item.lat || item.latitude || item.coordY;
         const lonExistente = item.lon || item.longitude || item.coordX;
 
-        // Se o banco de dados já retornou coordenadas válidas de gravação anterior, pula o Nominatim
         if (latExistente !== undefined && latExistente !== null && !isNaN(parseFloat(latExistente)) &&
             lonExistente !== undefined && lonExistente !== null && !isNaN(parseFloat(lonExistente))) {
             
             item.lat = parseFloat(latExistente);
             item.lon = parseFloat(lonExistente);
             item.geocodificadoComSucesso = true;
-            continue; // Pula para o próximo contrato imediatamente (carregamento instantâneo)
+            continue;
         }
 
         btnCarregar.textContent = `MAPEANDO ENDEREÇOS: ${i + 1} de ${total}...`;
@@ -588,19 +624,14 @@ async function geocodificarFila(contratos) {
                         item.lon = longitude;
                         item.geocodificadoComSucesso = true;
 
-                        // --- NOVO: Garante o uso de AWAIT para aguardar a gravação antes de seguir no loop ---
                         await salvarCoordenadasNoBanco(item.contrato, item.PartitionKey || item.partitionKey || "", latitude, longitude);
                     } else {
-                        // --- NOVO: Se falhar (não encontrar o endereço), grava a coordenada 1.0, 1.0 como flag ---
                         item.lat = 1.0;
                         item.lon = 1.0;
                         item.geocodificadoComSucesso = false;
-                        
-                        // Salva o erro no banco de dados como marcador "1.0, 1.0" para não tentar mais na próxima busca
                         await salvarCoordenadasNoBanco(item.contrato, item.PartitionKey || item.partitionKey || "", 1.0, 1.0);
                     }
                 } else {
-                    // Trata ausência de resposta da mesma forma para persistir a flag de erro "1.0, 1.0"
                     item.lat = 1.0;
                     item.lon = 1.0;
                     item.geocodificadoComSucesso = false;
@@ -622,7 +653,7 @@ async function salvarCoordenadasNoBanco(contratoId, partitionKey, lat, lon) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 contrato: contratoId,
-                partitionKey: partitionKey, // Importante para localizar a partição da data correta
+                partitionKey: partitionKey,
                 latitude: lat,
                 longitude: lon
             })
@@ -666,7 +697,6 @@ function gerarMensagemWhatsapp(endereco, complemento, bairro, cidade, contrato) 
 function ordenarFilaNearestNeighbor(contratos, startLat, startLon, limiteQtd) {
     if (!contratos || contratos.length === 0) return [];
     
-    // CASO 1: Sem coordenadas do técnico (GPS desativado ou falhou)
     if (!startLat || !startLon) {
         return [...contratos].sort((a, b) => {
             const isAOpcao = String(a.tipo).toUpperCase().includes("OPC");
@@ -677,23 +707,18 @@ function ordenarFilaNearestNeighbor(contratos, startLat, startLon, limiteQtd) {
         });
     }
 
-    // CASO 2: GPS ativo. Separamos entre os mapeados com sucesso e os que falharam
-    // Filtramos e ignoramos os contratos que possuem a flag de erro de geocodificação "1.0, 1.0"
     const mapeados = contratos.filter(c => c.lat !== null && c.lon !== null && c.geocodificadoComSucesso !== false && c.lat !== 1.0);
     const naoMapeados = contratos.filter(c => c.lat === null || c.lon === null || c.geocodificadoComSucesso === false || c.lat === 1.0);
 
     const resultadoOrdenado = [];
     
     if (mapeados.length > 0) {
-        // 1. Calcula a distância direta de você para todos os contratos mapeados
         mapeados.forEach(c => {
             c.distanciaDireta = calcularDistanciaKm(startLat, startLon, c.lat, c.lon);
         });
 
-        // 2. Ordena o pool completo pela distância direta de você
         mapeados.sort((a, b) => a.distanciaDireta - b.distanciaDireta);
 
-        // 3. Seleciona os N mais próximos para roteirização em cadeia
         const N = limiteQtd === 'ALL' ? mapeados.length : parseInt(limiteQtd, 10);
         const maxPermitido = limiteQtd === 'ALL' ? mapeados.length : (N + 3);
 
@@ -701,13 +726,11 @@ function ordenarFilaNearestNeighbor(contratos, startLat, startLon, limiteQtd) {
         const restantesMapeados = mapeados.slice(Math.min(maxPermitido, mapeados.length));
 
         if (candidatosProximos.length > 0) {
-            // Escolhe o primeiro do lote como o absoluto mais próximo de você
             const primeiro = candidatosProximos.shift();
             primeiro.distancia = primeiro.distanciaDireta;
             resultadoOrdenado.push(primeiro);
             let pontoAtual = { lat: primeiro.lat, lon: primeiro.lon };
 
-            // Construção da cadeia (Next-Neighbor)
             while (candidatosProximos.length > 0) {
                 let proximoIndex = -1;
                 let menorDistanciaLote = Infinity;
@@ -732,13 +755,11 @@ function ordenarFilaNearestNeighbor(contratos, startLat, startLon, limiteQtd) {
             }
         }
         
-        // Se houver contratos mapeados que ficaram fora do limite inicial de busca, anexa-os na sequência
         if (restantesMapeados.length > 0) {
             resultadoOrdenado.push(...restantesMapeados);
         }
     }
 
-    // 4. Contratos que falharam na geocodificação são inseridos no final da fila
     if (naoMapeados.length > 0) {
         resultadoOrdenado.push(...naoMapeados);
     }
@@ -750,7 +771,7 @@ function ordenarFilaNearestNeighbor(contratos, startLat, startLon, limiteQtd) {
 document.getElementById('select-safra').addEventListener('change', function() {
     const selectedValues = Array.from(this.selectedOptions).map(opt => opt.value);
     
-    if (selectedValues.includes('TODOS' && selectedValues.length > 1)) {
+    if (selectedValues.includes('TODOS') && selectedValues.length > 1) {
         if (selectedValues[selectedValues.length - 1] === 'TODOS') {
             Array.from(this.options).forEach(opt => {
                 opt.selected = (opt.value === 'TODOS');
@@ -800,9 +821,7 @@ async function prosseguirProcessamentoContratos(contratosParaProcessar, limit) {
         indexExibicaoAtual = 0; 
     }
 
-    // Exibe o botão do Mapa de Backlog caso existam contratos carregados em memória
     document.getElementById('btn-mapa-backlog').style.display = 'block';
-
     btnCarregar.disabled = false;
 }
 
@@ -829,8 +848,6 @@ document.getElementById('btn-carregar').addEventListener('click', async () => {
     localStorage.setItem('login_tecnico', login);
 
     const btnCarregar = document.getElementById('btn-carregar');
-    
-    // Oculta painel de seleção caso mude de busca
     document.getElementById('card-bairro-selecao').style.display = 'none';
 
     btnCarregar.disabled = true;
@@ -856,7 +873,6 @@ document.getElementById('btn-carregar').addEventListener('click', async () => {
 
     btnCarregar.textContent = "BUSCANDO DADOS NO AZURE...";
 
-    // Se estivermos no modo bairro, trazemos todos os bairros da cidade para poder mapeá-los localmente [2]
     let limiteSwaQuery = limit;
     if (modo === 'BAIRRO') {
         limiteSwaQuery = 'ALL';
@@ -905,10 +921,8 @@ document.getElementById('btn-carregar').addEventListener('click', async () => {
         const stopWords = ["JARDIM", "JD", "VILA", "VL", "PARQUE", "PQ", "CONJUNTO", "COHAB", "RESIDENCIAL", "RES", "CHACARA", "CH", "SETOR", "CENTRO"];
         const coreWords = normTech.split(" ").filter(w => !stopWords.includes(w) && w.length > 2);
 
-        // Coleta bairros existentes nos contratos buscados
         const bairrosNoDb = [...new Set(contratosFiltrados.map(c => c.bairro).filter(Boolean))];
 
-        // Mapeia termos aproximados/variações
         let sugestoes = [];
         if (coreWords.length > 0) {
             sugestoes = bairrosNoDb.filter(bDb => {
@@ -932,7 +946,6 @@ document.getElementById('btn-carregar').addEventListener('click', async () => {
                 selectBairro.appendChild(opt);
             });
 
-            // Adiciona demais bairros da busca caso queira alternar manualmente
             const outrosBairros = bairrosNoDb.filter(b => !sugestoes.includes(b));
             if (outrosBairros.length > 0) {
                 const divisor = document.createElement('option');
@@ -958,14 +971,12 @@ document.getElementById('btn-carregar').addEventListener('click', async () => {
             });
         }
 
-        // Exibe o card de escolha
         document.getElementById('card-bairro-selecao').style.display = 'block';
         btnCarregar.disabled = false;
         btnCarregar.textContent = "CARREGAR FILA E ORDENAR POR PROXIMIDADE";
         document.getElementById('card-bairro-selecao').scrollIntoView({ behavior: 'smooth' });
 
     } else {
-        // Fluxo padrão Geral
         await prosseguirProcessamentoContratos(contratosFiltrados, limit);
     }
 });
@@ -980,10 +991,7 @@ document.getElementById('btn-confirmar-bairro').addEventListener('click', async 
         return;
     }
 
-    // Mantém o painel de bairro visível removendo a ocultação automática
-    // Filtra localmente apenas contratos do bairro correspondente escolhido pelo usuário
     const contratosNoBairro = contratosCarregadosTemporarios.filter(c => c.bairro === bairroSelecionado);
-
     const limit = document.getElementById('select-quantidade').value;
     await prosseguirProcessamentoContratos(contratosNoBairro, limit);
 });
@@ -1018,7 +1026,6 @@ function renderizarContratos(contratos) {
         const tagClass = item.tipo.includes('OPC') ? 'tipo-opcao' : 'tipo-inad';
         
         let distTexto = "";
-        // Se as coordenadas forem a flag de erro (1.0, 1.0), não calcula a distância para exibir em Km
         if (item.distanciaDireta && item.distanciaDireta !== 999999 && item.lat !== 1.0) {
             distTexto = ` • 📍 A ${item.distanciaDireta.toFixed(2)} Km de sua posição inicial`;
             
@@ -1123,7 +1130,6 @@ function renderizarContratos(contratos) {
 
 // --- REDIRECIONAMENTO DE MAPAS ---
 function irParaMapa(lat, lon, address, city, contratoId) {
-    // Ao traçar a rota, inicia automaticamente o atendimento se já não estiver ativo
     if (contratoId) {
         const boxConclusao = document.getElementById(`conclusao-${contratoId}`);
         if (boxConclusao && boxConclusao.style.display !== "block") {
@@ -1477,16 +1483,14 @@ function iniciarAtendimento(contratoId) {
         btnAtender.style.background = "#f59e0b";
         card.style.border = "1px solid #334155";
         
-        // Remove a TAG visual de atendimento ativo
         const badge = document.getElementById(`badge-atendimento-${contratoId}`);
         if (badge) badge.remove();
     } else {
         boxConclusao.style.display = "block";
         btnAtender.textContent = "CANCELAR ATENDIMENTO ✕";
         btnAtender.style.background = "#ef4444";
-        card.style.border = "2px solid #f59e0b"; // Borda laranja de destaque
+        card.style.border = "2px solid #f59e0b";
 
-        // Adiciona a TAG/Badge "EM ATENDIMENTO" no cabeçalho se não existir
         if (!document.getElementById(`badge-atendimento-${contratoId}`)) {
             const header = card.querySelector('.contrato-header');
             if (header) {
@@ -1502,13 +1506,11 @@ function iniciarAtendimento(contratoId) {
             }
         }
 
-        // Move o card fisicamente para o topo da lista de exibição
         const container = document.getElementById('lista-contratos');
         if (container) {
             container.insertBefore(card, container.firstChild);
         }
 
-        // Rola a tela suavemente para focar no card em atendimento
         card.scrollIntoView({ behavior: 'smooth', block: 'start' });
         
         obterGeolocalizacao().then(coords => {
@@ -1524,9 +1526,7 @@ function iniciarAtendimento(contratoId) {
 // --- SISTEMA DE REVERSÃO NO PAINEL TÉCNICO ---
 // ==========================================
 
-// --- BUSCA OS MODELOS DO CONTRATO ---
 async function obterEquipamentosDoContrato(contratoId) {
-    // 1. Tenta varrer localmente os contratos em memória na fila ativa do aparelho
     let contratoEncontrado = contratosCarregadosTemporarios.find(c => String(c.contrato) === String(contratoId)) || 
                              todosContratosOrdenados.find(c => String(c.contrato) === String(contratoId));
     
@@ -1535,7 +1535,6 @@ async function obterEquipamentosDoContrato(contratoId) {
         if (modelos.length > 0) return modelos;
     }
 
-    // 2. Tenta fazer uma requisição silenciosa de recuperação da base do Azure
     try {
         const response = await fetch(`/api/obterContratos?limit=ALL`);
         if (response.ok) {
@@ -1550,11 +1549,9 @@ async function obterEquipamentosDoContrato(contratoId) {
         console.error("Erro ao pesquisar equipamentos adicionais:", e);
     }
 
-    // 3. Fallback genérico
     return ["MODEM WIFI / MTA CLARO", "DECODER HD / 4K CLARO", "ONU FIBRA", "REPETIDOR WIFI", "OUTROS"];
 }
 
-// --- FUNÇÃO PARA INICIAR PAINEL DE REVERSÃO NO CARD DE HISTÓRICO LOCAL ---
 async function iniciarReversaoHistorico(contratoId) {
     const box = document.getElementById(`box-reversao-${contratoId}`);
     if (!box) return;
@@ -1572,12 +1569,11 @@ async function iniciarReversaoHistorico(contratoId) {
 
     fotosReversao[contratoId] = [];
     fotoFachadaReversao[contratoId] = null;
-    statusReversao[contratoId] = "PRODUTIVO"; // Começa setado para reverter como Produtivo
+    statusReversao[contratoId] = "PRODUTIVO";
 
     renderizarFormularioReversao(contratoId);
 }
 
-// --- RENDERIZADOR DO SUBFORMULÁRIO INTERNO ---
 function renderizarFormularioReversao(contratoId) {
     const box = document.getElementById(`box-reversao-${contratoId}`);
     if (!box) return;
@@ -1641,7 +1637,6 @@ function renderizarFormularioReversao(contratoId) {
     }
 }
 
-// --- ADICIONAR E RETIRAR EVIDÊNCIAS NO FLUXO DE REVERSÃO ---
 function adicionarFotoReversao(contratoId, input) {
     const file = input.files[0];
     if (!file) return;
@@ -1780,7 +1775,6 @@ function cancelarReversao(contratoId) {
     if (box) box.style.display = "none";
 }
 
-// --- EXECUÇÃO FINAL DA GRAVAÇÃO DA REVERSÃO ---
 async function salvarReversaoFinal(contratoId) {
     const statusAtivo = statusReversao[contratoId];
     const tecnico = localStorage.getItem('login_tecnico');
@@ -1834,7 +1828,6 @@ async function salvarReversaoFinal(contratoId) {
         if (response.ok) {
             alert("Atendimento revertido e sincronizado com sucesso!");
 
-            // Atualiza o item de histórico local correspondente na máquina do técnico
             let historicoLocal = [];
             try {
                 historicoLocal = JSON.parse(localStorage.getItem('historico_atendimentos')) || [];
@@ -1853,7 +1846,6 @@ async function salvarReversaoFinal(contratoId) {
                 localStorage.setItem('historico_atendimentos', JSON.stringify(historicoLocal));
             }
 
-            // Atualiza a visualização do histórico local do técnico
             renderizarListaHistorico();
         } else {
             const err = await response.json();
@@ -1866,8 +1858,91 @@ async function salvarReversaoFinal(contratoId) {
 }
 
 // ==========================================
-// --- SISTEMA DO MAPA GERAL DO BACKLOG ---
+// --- SISTEMA DO MAPA GERAL DO BACKLOG COM FILTRO LATERAL ---
 // ==========================================
+
+// --- GERADOR DOS CHECKBOXES DO PAINEL LATERAL DO MAPA (TODOS SELECIONADOS DE INÍCIO) ---
+function montarPainelFiltroSafraMapa() {
+    const container = document.getElementById('lista-checkboxes-safra-mapa');
+    if (!container) return;
+
+    container.innerHTML = "";
+
+    // Coleta todas as safras presentes nos contratos carregados
+    const safrasExistentesNoDb = [...new Set(todosContratosOrdenados.map(c => c.safra || c.mes_safra || c.safra_mes).filter(Boolean))];
+    
+    // Une as opções padrão com qualquer outra variação vinda do banco
+    const safrasParaExibir = [...new Set([...listaSafrasOpcoes, ...safrasExistentesNoDb])];
+
+    safrasParaExibir.forEach(safraNome => {
+        const itemLabel = document.createElement('label');
+        itemLabel.style.display = "flex";
+        itemLabel.style.alignItems = "center";
+        itemLabel.style.gap = "8px";
+        itemLabel.style.fontSize = "12px";
+        itemLabel.style.color = "#cbd5e1";
+        itemLabel.style.cursor = "pointer";
+        itemLabel.style.userSelect = "none";
+
+        const chk = document.createElement('input');
+        chk.type = "checkbox";
+        chk.value = safraNome;
+        chk.className = "chk-safra-mapa-item";
+        chk.checked = true; // --- REGRA SOLICITADA: Todos vêm marcados de início ---
+        chk.onchange = () => aoAlterarCheckboxIndividualMapa();
+
+        itemLabel.appendChild(chk);
+        itemLabel.appendChild(document.createTextNode(safraNome));
+        container.appendChild(itemLabel);
+    });
+
+    const chkTodos = document.getElementById('chk-mapa-safra-todos');
+    if (chkTodos) chkTodos.checked = true;
+}
+
+// --- CONTROLE DE SELEÇÃO: MARCAR/DESMARCAR TODOS ---
+function alternarTodosFiltrosMapa(marcado) {
+    const checkboxes = document.querySelectorAll('.chk-safra-mapa-item');
+    checkboxes.forEach(chk => {
+        chk.checked = marcado;
+    });
+    atualizarMarcadoresMapa();
+}
+
+// --- ATUALIZA STATUS DO "SELECIONAR TODOS" CONFORME CLIQUE INDIVIDUAL ---
+function aoAlterarCheckboxIndividualMapa() {
+    const checkboxes = Array.from(document.querySelectorAll('.chk-safra-mapa-item'));
+    const chkTodos = document.getElementById('chk-mapa-safra-todos');
+    
+    const todosMarcados = checkboxes.every(c => c.checked);
+    if (chkTodos) chkTodos.checked = todosMarcados;
+
+    atualizarMarcadoresMapa();
+}
+
+// --- RETORNA AS SAFRAS SELECIONADAS NO PAINEL LATERAL ---
+function obterSafrasSelecionadasMapa() {
+    const checkboxes = document.querySelectorAll('.chk-safra-mapa-item:checked');
+    return Array.from(checkboxes).map(c => c.value);
+}
+
+// --- COMPARAÇÃO ROBUSTA DE SAFRA DE UM CONTRATO ---
+function contratoPertenceASafrasSelecionadas(contrato, safrasSelecionadas) {
+    if (!safrasSelecionadas || safrasSelecionadas.length === 0) return false;
+
+    const valSafraRaw = String(contrato.safra || contrato.mes_safra || contrato.safra_mes || "").trim().toLowerCase();
+    if (!valSafraRaw) return true; // Exibe caso não tenha safra especificada para não perder do mapa
+
+    return safrasSelecionadas.some(safraFiltro => {
+        const safraFiltroLower = safraFiltro.trim().toLowerCase();
+        if (valSafraRaw === safraFiltroLower) return true;
+
+        // Compara por número bruto do mês (ex: "1" em "1º mês")
+        const numContrato = valSafraRaw.replace(/\D/g, '');
+        const numFiltro = safraFiltroLower.replace(/\D/g, '');
+        return (numContrato && numFiltro && numContrato === numFiltro);
+    });
+}
 
 // --- ABRE O MODAL E INICIALIZA O LEAFLET ---
 function abrirMapaBacklog() {
@@ -1876,9 +1951,13 @@ function abrirMapaBacklog() {
         return;
     }
 
+    // 1. Monta os checkboxes da lateral com TODOS selecionados de início
+    montarPainelFiltroSafraMapa();
+
+    // 2. Exibe o modal
     document.getElementById('modal-mapa-backlog').style.display = 'block';
 
-    // Aguarda o container do mapa ser renderizado no DOM antes de inicializar o Leaflet
+    // 3. Aguarda renderização no DOM antes de inicializar o Leaflet
     setTimeout(() => {
         inicializarMapaLeaflet();
     }, 250);
@@ -1889,16 +1968,13 @@ function fecharMapaBacklog() {
     document.getElementById('modal-mapa-backlog').style.display = 'none';
 }
 
-// --- INICIALIZA OU REDIMENSIONA O MAPA ---
+// --- INICIALIZA E DESENHA O MAPA ---
 function inicializarMapaLeaflet() {
-    // Se o mapa já foi criado anteriormente, reajusta seu tamanho
     if (mapaBacklogInstance) {
         mapaBacklogInstance.invalidateSize();
     } else {
-        // Posição inicial neutra
         mapaBacklogInstance = L.map('mapa-backlog-leaflet').setView([-22.3145, -49.0587], 13);
 
-        // Adiciona a camada pública de tiles do OpenStreetMap
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; OpenStreetMap contributors'
         }).addTo(mapaBacklogInstance);
@@ -1906,20 +1982,27 @@ function inicializarMapaLeaflet() {
         markersGroup = L.layerGroup().addTo(mapaBacklogInstance);
     }
 
-    // Limpa pontos anteriores antes de redesenhar
+    atualizarMarcadoresMapa();
+}
+
+// --- ATUALIZA OS MARCADORES DO MAPA CONFORME OS MESES FILTRADOS ---
+function atualizarMarcadoresMapa() {
+    if (!markersGroup || !mapaBacklogInstance) return;
+
     markersGroup.clearLayers();
 
-    // Filtra apenas os contratos que foram geocodificados com sucesso e ignora os marcadores de erro "1.0, 1.0"
-    const contratosComGps = todosContratosOrdenados.filter(c => c.lat !== null && c.lon !== null && c.lat !== 1.0);
+    const safrasSelecionadas = obterSafrasSelecionadasMapa();
 
-    if (contratosComGps.length === 0) {
-        alert("Nenhum contrato ativo possui coordenadas geocodificadas para exibição.");
-        return;
-    }
+    // Filtra contratos por geocodificação válida E pelo mês safra selecionado na lateral
+    const contratosFiltradosNoMapa = todosContratosOrdenados.filter(c => {
+        const temGpsValido = (c.lat !== null && c.lon !== null && c.lat !== 1.0);
+        const atendeSafra = contratoPertenceASafrasSelecionadas(c, safrasSelecionadas);
+        return temGpsValido && atendeSafra;
+    });
 
     const bounds = [];
 
-    // 1. Adiciona marcador da localização atual do técnico
+    // 1. Posição Atual do Técnico
     if (localizacaoTecnico) {
         const userLat = localizacaoTecnico.latitude;
         const userLon = localizacaoTecnico.longitude;
@@ -1935,13 +2018,12 @@ function inicializarMapaLeaflet() {
         userMarker.bindPopup("<b style='color:#0ea5e9;'>Minha Posição Atual 🚗</b>");
     }
 
-    // 2. Adiciona marcadores de cada um dos contratos do backlog
-    contratosComGps.forEach(c => {
+    // 2. Marcadores dos Contratos Filtrados no Mapa
+    contratosFiltradosNoMapa.forEach(c => {
         const cLat = parseFloat(c.lat);
         const cLon = parseFloat(c.lon);
         bounds.push([cLat, cLon]);
 
-        // Mapeia cor do ponto de acordo com a prioridade
         const markerColor = c.tipo.includes('OPC') ? '#2563eb' : '#ef4444';
 
         const contractMarker = L.circleMarker([cLat, cLon], {
@@ -1952,10 +2034,13 @@ function inicializarMapaLeaflet() {
             weight: 2
         }).addTo(markersGroup);
 
+        const safraExibicao = c.safra || c.mes_safra || c.safra_mes || "Não informada";
+
         const popHTML = `
             <div style="color: #0f172a; font-family: sans-serif; font-size: 13px; min-width: 180px;">
                 <b style="color: #1e3a8a; display: block; border-bottom: 1px dashed #cbd5e1; padding-bottom: 3px; margin-bottom: 5px;">CONTRATO: ${c.contrato}</b>
                 <strong>Titular:</strong> ${c.titular}<br>
+                <strong>Safra:</strong> ${safraExibicao}<br>
                 <strong>Tipo:</strong> ${c.tipo}<br>
                 <strong>Endereço:</strong> ${c.endereco}<br>
                 <button onclick="irParaMapa(${cLat}, ${cLon}, '${c.endereco.replace(/'/g, "\\'")}', '${c.cidade}', '${c.contrato}'); fecharMapaBacklog();" style="background: #22c55e; color: white; border: none; border-radius: 4px; padding: 6px 10px; font-weight: bold; font-size: 11px; width: 100%; cursor: pointer; margin-top: 8px;">🧭 TRAÇAR ROTA NO GPS</button>
@@ -1964,12 +2049,10 @@ function inicializarMapaLeaflet() {
         contractMarker.bindPopup(popHTML);
     });
 
-    // 3. Ajusta o enquadramento da câmera do mapa de forma inteligente
+    // 3. Enquadramento da Câmera
     if (localizacaoTecnico) {
-        // Se a localização do técnico estiver disponível, foca nela com nível de zoom aproximado 14
         mapaBacklogInstance.setView([localizacaoTecnico.latitude, localizacaoTecnico.longitude], 14);
     } else if (bounds.length > 0) {
-        // Fallback: Caso o GPS esteja desativado, enquadra todos os pontos no mapa
         mapaBacklogInstance.fitBounds(bounds, { padding: [40, 40] });
     }
 }
@@ -1977,7 +2060,6 @@ function inicializarMapaLeaflet() {
 window.addEventListener('load', async () => {
     const loginSalvo = localStorage.getItem('login_tecnico');
     if (loginSalvo) {
-        // Tenta revalidar automaticamente de forma transparente [2]
         await validarAcesso(loginSalvo, true);
     } else {
         exibirLogin(true);
