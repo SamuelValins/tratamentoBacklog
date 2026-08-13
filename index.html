@@ -466,6 +466,10 @@ function exibirLogin(mostrar) {
     }
 }
 
+function培育Login() {
+    // Note: Mantendo o escopo original de funções iniciadas com "efetuarLogin"
+}
+
 function efetuarLogin() {
     const login = document.getElementById('login-usuario').value.trim().toLowerCase();
     if (!login) {
@@ -1874,8 +1878,20 @@ async function salvarReversaoFinal(contratoId) {
 function extrairSafraDoContrato(c) {
     if (!c || typeof c !== 'object') return "";
     for (let k in c) {
-        const kLower = k.toLowerCase().replace(/[^a-z0-9]/g, '');
-        if (kLower === 'safra' || kLower === 'messafra' || kLower === 'saframes' || kLower === 'safradesc' || kLower === 'mes' || kLower === 'periodo' || kLower === 'safratabela') {
+        // Remove acentos/diacríticos de forma robusta (ex: Mês -> Mes)
+        const kNormalized = k.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const kLower = kNormalized.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (
+            kLower === 'safra' || 
+            kLower === 'messafra' || 
+            kLower === 'saframes' || 
+            kLower === 'safradesc' || 
+            kLower === 'mes' || 
+            kLower === 'periodo' || 
+            kLower === 'safratabela' ||
+            kLower === 'mssafra' || // Fallback
+            kLower === 'ms'         // Fallback
+        ) {
             const val = c[k];
             if (val !== null && val !== undefined && String(val).trim() !== "") {
                 return String(val).trim();
