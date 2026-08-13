@@ -466,10 +466,6 @@ function exibirLogin(mostrar) {
     }
 }
 
-function培育Login() {
-    // Note: Mantendo o escopo original de funções iniciadas com "efetuarLogin"
-}
-
 function efetuarLogin() {
     const login = document.getElementById('login-usuario').value.trim().toLowerCase();
     if (!login) {
@@ -1377,7 +1373,7 @@ async function enviarAtendimentoFinal(contratoId) {
                 dataHora: new Date().toISOString(),
                 tecnico: tecnico,
                 codigo_baixa: statusAtivo === 'IMPRODUTIVO' ? payload.codigo_baixa : null,
-                observacao: statusAtivo === 'IMPRODUTIVO' ? payload.observacao_conclusao : "EQUIPAMENTO RETIRADO COM SUCESSO",
+                observacao: statusAtivo === 'IMPRODUTIVO' ? payload.observacao_conclusao : "EQUIPAMENTO RETIRADO WITH SUCCESS",
                 qtd_fotos: statusAtivo === 'PRODUTIVO' ? payload.imagens_etiqueta.length : 1
             };
             salvarNoHistoricoLocal(registroHistorico);
