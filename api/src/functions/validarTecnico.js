@@ -36,7 +36,10 @@ app.http('validarTecnico', {
                     status: 200, 
                     jsonBody: { 
                         status: entity.Status || 'ATIVO', 
-                        cidadeAtuacao: entity.CidadeAtuacao || 'TODAS'
+                        cidadeAtuacao: entity.CidadeAtuacao || 'TODAS',
+                        // MAPEAMENTO DOS NOVOS CAMPOS ENVIADOS PARA O APLICATIVO DO TÉCNICO
+                        safrasPermitidas: entity.SafrasPermitidas || 'TODOS',
+                        limiteServicos: entity.LimiteServicos || '30'
                     } 
                 };
 
