@@ -432,6 +432,27 @@ async function validarAcesso(login, isAutoLogin = false) {
                     Array.from(selectSafra.options).forEach(opt => {
                         opt.selected = permitidas.includes(opt.value) || permitidas.includes('TODOS');
                     });
+
+                    // BLOQUEIA ALTERAÇÕES CASO TENHA SIDO TRAVADO UM MÊS SAFRA DETERMINADO
+                    const temSafraDeterminada = permitidas.length > 0 && !permitidas.includes('TODOS');
+                    if (temSafraDeterminada) {
+                        selectSafra.disabled = true;
+                        selectSafra.style.background = '#1e293b';
+                        selectSafra.style.color = '#94a3b8';
+                        selectSafra.style.cursor = 'not-allowed';
+
+                        const selectQtd = document.getElementById('select-quantidade');
+                        selectQtd.disabled = true;
+                        selectQtd.style.background = '#1e293b';
+                        selectQtd.style.color = '#94a3b8';
+                        selectQtd.style.cursor = 'not-allowed';
+
+                        const selectTipo = document.getElementById('select-tipo');
+                        selectTipo.disabled = true;
+                        selectTipo.style.background = '#1e293b';
+                        selectTipo.style.color = '#94a3b8';
+                        selectTipo.style.cursor = 'not-allowed';
+                    }
                 }
 
                 if (data.limiteServicos) {
@@ -486,6 +507,26 @@ function efetuarLogout() {
     document.getElementById('login-usuario').value = "";
     document.getElementById('input-tecnico').value = "";
     document.getElementById('input-cidade').value = "";
+
+    // RESTAURA E REATIVA OS SELECTS DE FILTRAGEM AO FAZER LOGOUT
+    const selectSafra = document.getElementById('select-safra');
+    selectSafra.disabled = false;
+    selectSafra.style.background = '#0f172a';
+    selectSafra.style.color = 'white';
+    selectSafra.style.cursor = 'default';
+
+    const selectQtd = document.getElementById('select-quantidade');
+    selectQtd.disabled = false;
+    selectQtd.style.background = '#0f172a';
+    selectQtd.style.color = 'white';
+    selectQtd.style.cursor = 'default';
+
+    const selectTipo = document.getElementById('select-tipo');
+    selectTipo.disabled = false;
+    selectTipo.style.background = '#0f172a';
+    selectTipo.style.color = 'white';
+    selectTipo.style.cursor = 'default';
+
     exibirLogin(true);
 }
 
@@ -840,7 +881,7 @@ async function prosseguirProcessamentoContratos(contratosParaProcessar, limit) {
     btnCarregar.disabled = false;
 }
 
-// --- CONTROLE DE CARREGAMENTO AND PAGINAÇÃO ---
+// --- CONTROLE DE CARREGAMENTO E PAGINAÇÃO ---
 document.getElementById('btn-carregar').addEventListener('click', async () => {
     const login = document.getElementById('input-tecnico').value.trim();
     const cityVal = document.getElementById('input-cidade').value.trim();
