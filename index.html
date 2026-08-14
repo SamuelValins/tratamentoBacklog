@@ -187,7 +187,7 @@ button {
     box-sizing: border-box;
 }
 
-/* --- RESPONSIVIDADE PARA O MODAL E BOTOES DE FILTRO DO MAPA --- */
+/* RESPONSIVIDADE PARA O MODAL E BOTOES DE FILTRO DO MAPA */
 @media (max-width: 768px) {
     #modal-mapa-backlog > div {
         height: 95vh !important;
@@ -339,10 +339,8 @@ button {
         
         <h3 style="margin-top: 0; color: #38bdf8; margin-bottom: 12px; padding-right: 40px;">🗺️ Mapa Geral de Contratos do Backlog</h3>
         
-        <!-- CONTAINER DO MAPA COM OVERLAYS FLUTUANTES -->
         <div style="flex: 1; height: 100%; position: relative; border-radius: 8px; overflow: hidden; border: 1px solid #334155;">
             
-            <!-- STAT CARDS / FILTROS DE TIPO FLUTUANTES (POSICIONADOS À DIREITA DO ZOOM + / -) -->
             <div id="card-resumo-mapa" style="position: absolute; top: 12px; left: 60px; z-index: 1000; display: flex; gap: 6px; flex-wrap: wrap;">
                 
                 <div id="btn-filtro-mapa-opcao" onclick="selecionarFiltroTipoMapa('OPCAO')" style="background: rgba(15, 23, 42, 0.9); border: 2px solid #2563eb; padding: 6px 10px; border-radius: 8px; text-align: center; backdrop-filter: blur(4px); cursor: pointer; transition: all 0.2s;">
@@ -362,7 +360,6 @@ button {
 
             </div>
 
-            <!-- ELEMENTO DO LEAFLET -->
             <div id="mapa-backlog-leaflet" style="width: 100%; height: 100%; background: #0f172a;"></div>
         </div>
     </div>
@@ -371,28 +368,23 @@ button {
 <script>
 let localizacaoTecnico = null;
 
-// Estruturas para gerenciar o estado temporário das fotos por contrato
 let fotosEquipamentos = {}; 
 let fotoFachada = {};       
 let statusAtendimento = {}; 
 
-// --- CONTROLE DE PAGINAÇÃO GLOBAL ---
 let queryAnterior = "";
 let todosContratosOrdenados = [];
 let indexExibicaoAtual = 0;
 let limiteExibicao = 30; 
 let contratosCarregadosTemporarios = []; 
 
-// Estado do Filtro Interativo por Tipo no Mapa ('ALL', 'OPCAO', 'INAD')
 let filtroTipoMapa = 'ALL';
 
-// Estados adicionais para Reversão no Histórico Local
 let fotosReversao = {};                
 let fotoFachadaReversao = {};          
 let statusReversao = {};               
 let equipamentosContratoReversao = {}; 
 
-// Variáveis Globais de Controle de Ciclo do Leaflet
 let mapaBacklogInstance = null;
 let markersGroup = null;
 
@@ -431,6 +423,20 @@ async function validarAcesso(login, isAutoLogin = false) {
                     inputCidade.style.color = 'white';
                     inputCidade.style.cursor = 'text';
                     if (!inputCidade.value) inputCidade.value = "";
+                }
+
+                // AUTO-SELEÇÃO DE FILTROS PRESETADOS DO TÉCNICO (SAFRAS E LIMITES)
+                if (data.safrasPermitidas) {
+                    const selectSafra = document.getElementById('select-safra');
+                    const permitidas = data.safrasPermitidas.split(',').map(s => s.trim());
+                    Array.from(selectSafra.options).forEach(opt => {
+                        opt.selected = permitidas.includes(opt.value) || permitidas.includes('TODOS');
+                    });
+                }
+
+                if (data.limiteServicos) {
+                    const selectQtd = document.getElementById('select-quantidade');
+                    selectQtd.value = data.limiteServicos;
                 }
 
                 exibirLogin(false);
@@ -834,7 +840,7 @@ async function prosseguirProcessamentoContratos(contratosParaProcessar, limit) {
     btnCarregar.disabled = false;
 }
 
-// --- CONTROLE DE CARREGAMENTO E PAGINAÇÃO ---
+// --- CONTROLE DE CARREGAMENTO AND PAGINAÇÃO ---
 document.getElementById('btn-carregar').addEventListener('click', async () => {
     const login = document.getElementById('input-tecnico').value.trim();
     const cityVal = document.getElementById('input-cidade').value.trim();
@@ -1373,7 +1379,7 @@ async function enviarAtendimentoFinal(contratoId) {
                 dataHora: new Date().toISOString(),
                 tecnico: tecnico,
                 codigo_baixa: statusAtivo === 'IMPRODUTIVO' ? payload.codigo_baixa : null,
-                observacao: statusAtivo === 'IMPRODUTIVO' ? payload.observacao_conclusao : "EQUIPAMENTO RETIRADO WITH SUCCESS",
+                observacao: statusAtivo === 'IMPRODUTIVO' ? payload.observacao_conclusao : "EQUIPAMENTO RETIRADO COM SUCESSO",
                 qtd_fotos: statusAtivo === 'PRODUTIVO' ? payload.imagens_etiqueta.length : 1
             };
             salvarNoHistoricoLocal(registroHistorico);
@@ -1468,7 +1474,6 @@ function renderizarListaHistorico() {
     });
 }
 
-// --- CONFIGURAÇÃO DE EVENTOS DO HISTÓRICO ---
 document.getElementById('btn-historico').addEventListener('click', () => {
     document.getElementById('modal-historico').style.display = 'block';
     renderizarListaHistorico();
@@ -1870,11 +1875,9 @@ async function salvarReversaoFinal(contratoId) {
 // --- SISTEMA DO MAPA GERAL DO BACKLOG ---
 // ==========================================
 
-// --- EXTRATOR UNIFICADO DE SAFRA DO CONTRATO ---
 function extrairSafraDoContrato(c) {
     if (!c || typeof c !== 'object') return "";
     for (let k in c) {
-        // Remove acentos/diacríticos de forma robusta (ex: Mês -> Mes)
         const kNormalized = k.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
         const kLower = kNormalized.toLowerCase().replace(/[^a-z0-9]/g, '');
         if (
@@ -1885,8 +1888,8 @@ function extrairSafraDoContrato(c) {
             kLower === 'mes' || 
             kLower === 'periodo' || 
             kLower === 'safratabela' ||
-            kLower === 'mssafra' || // Fallback
-            kLower === 'ms'         // Fallback
+            kLower === 'mssafra' || 
+            kLower === 'ms'         
         ) {
             const val = c[k];
             if (val !== null && val !== undefined && String(val).trim() !== "") {
@@ -1897,7 +1900,6 @@ function extrairSafraDoContrato(c) {
     return "";
 }
 
-// --- NORMALIZADOR PADRONIZADO DE SAFRAS ---
 function normalizarSafra(val) {
     if (val === null || val === undefined || String(val).trim() === "") {
         return "Sem Safra";
@@ -1911,7 +1913,6 @@ function normalizarSafra(val) {
     return str.toUpperCase();
 }
 
-// --- EXTRATOR UNIFICADO DE COORDENADAS DO CONTRATO ---
 function extrairCoordenadasContrato(c) {
     if (!c || typeof c !== 'object') return null;
 
@@ -1943,7 +1944,6 @@ function extrairCoordenadasContrato(c) {
     return null;
 }
 
-// --- FILTRO DE TIPO NO MAPA (OPÇÃO / INADIMPLÊNCIA / TOTAL) ---
 function selecionarFiltroTipoMapa(tipo) {
     filtroTipoMapa = tipo;
     atualizarEstiloBotoesFiltroTipo();
@@ -1981,7 +1981,7 @@ function atualizarEstiloBotoesFiltroTipo() {
         btnTotal.style.border = "1px solid #334155";
         btnTotal.style.background = "rgba(15, 23, 42, 0.6)";
         btnTotal.style.opacity = "0.5";
-    } else { // 'ALL'
+    } else { 
         btnOpcao.style.border = "1px solid #2563eb";
         btnOpcao.style.background = "rgba(15, 23, 42, 0.9)";
         btnOpcao.style.opacity = "1";
@@ -1996,7 +1996,6 @@ function atualizarEstiloBotoesFiltroTipo() {
     }
 }
 
-// --- ABRE O MODAL E INICIALIZA O LEAFLET ---
 function abrirMapaBacklog() {
     if (!todosContratosOrdenados || todosContratosOrdenados.length === 0) {
         alert("Por favor, carregue os contratos primeiro!");
@@ -2013,12 +2012,10 @@ function abrirMapaBacklog() {
     }, 250);
 }
 
-// --- FECHA O MODAL DO MAPA ---
 function fecharMapaBacklog() {
     document.getElementById('modal-mapa-backlog').style.display = 'none';
 }
 
-// --- INICIALIZA E DESENHA O MAPA ---
 function inicializarMapaLeaflet() {
     if (mapaBacklogInstance) {
         mapaBacklogInstance.invalidateSize();
@@ -2040,13 +2037,11 @@ function inicializarMapaLeaflet() {
     atualizarMarcadoresMapa();
 }
 
-// --- ATUALIZA OS MARCADORES DO MAPA E OS CARDS ESTATÍSTICOS ---
 function atualizarMarcadoresMapa() {
     if (!markersGroup || !mapaBacklogInstance) return;
 
     markersGroup.clearLayers();
 
-    // 1. Cálculo das estatísticas gerais dos dados válidos carregados
     let qtdOpcaoTotal = 0;
     let qtdInadTotal = 0;
 
@@ -2065,7 +2060,6 @@ function atualizarMarcadoresMapa() {
     document.getElementById('stat-qtd-inad').textContent = qtdInadTotal;
     document.getElementById('stat-qtd-total').textContent = contratosValidos.length;
 
-    // 2. Filtra os marcadores que deverão ser renderizados de acordo com o clique no card
     const contratosFiltradosNoMapa = contratosValidos.filter(c => {
         const tipoUpper = String(c.tipo || c.Tipo || c.TIPO || '').toUpperCase();
         const isOpcao = tipoUpper.includes('OPC');
@@ -2075,12 +2069,11 @@ function atualizarMarcadoresMapa() {
         } else if (filtroTipoMapa === 'INAD') {
             return !isOpcao;
         }
-        return true; // ALL
+        return true; 
     });
 
     const bounds = [];
 
-    // Posição Atual do Técnico
     if (localizacaoTecnico) {
         const userLat = localizacaoTecnico.latitude;
         const userLon = localizacaoTecnico.longitude;
@@ -2096,7 +2089,6 @@ function atualizarMarcadoresMapa() {
         userMarker.bindPopup("<b style='color:#0ea5e9;'>Minha Posição Atual 🚗</b>");
     }
 
-    // Marcadores dos Contratos Filtrados
     contratosFiltradosNoMapa.forEach(c => {
         const coords = extrairCoordenadasContrato(c);
         if (!coords) return;
@@ -2131,7 +2123,6 @@ function atualizarMarcadoresMapa() {
         contractMarker.bindPopup(popHTML);
     });
 
-    // Enquadramento da Câmera
     if (bounds.length > 0) {
         mapaBacklogInstance.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
     } else if (localizacaoTecnico) {
