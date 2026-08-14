@@ -472,7 +472,7 @@ tr:hover {
     </div>
 </div>
 
-<!-- Modal do Mapa de Rotas e Atendimentos do Técnico (Gerencial) -->
+<!-- Modal do Mapa do Atendimento e Rota Percorrida (Gerencial) -->
 <div id="modal-mapa-rotas-gerencial" class="modal-overlay" style="z-index: 10005;">
     <div style="background: #1e293b; max-width: 1000px; width: 95%; height: 85vh; display: flex; flex-direction: column; padding: 20px; border-radius: 10px; border: 1px solid #334155; position: relative; margin: 20px auto; box-sizing: border-box;">
         <button style="position: absolute; top: 15px; right: 15px; background: #ef4444; color: white; border: none; font-weight: bold; width: 35px; height: 35px; border-radius: 50%; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 10010;" onclick="fecharModal('modal-mapa-rotas-gerencial')">✕</button>
@@ -1269,12 +1269,6 @@ function definirFotoFachadaReversao(contratoId, input) {
     };
     reader.readAsDataURL(file);
     input.value = "";
-}
-
-function removerFotoFachadaReversao(contratoId) {
-    fotoFachadaReversao[contratoId] = null;
-    const preview = document.getElementById(`preview-fachada-rev-${contratoId}`);
-    if (preview) preview.innerHTML = "";
 }
 
 // --- ALTERNADOR DE STATUS NO FLUXO DE REVERSÃO ---
