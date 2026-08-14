@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Painel Gerencial - Administração de Técnicos</title>
+
+<!-- Folhas de Estilo e Scripts do Leaflet.js para renderização do Mapa -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
 <style>
 body {
     margin: 0;
@@ -52,6 +57,10 @@ input, select {
     box-sizing: border-box;
     font-family: inherit;
     font-size: 14px;
+}
+select[multiple] {
+    height: 110px;
+    overflow-y: auto;
 }
 button {
     color: white;
@@ -272,6 +281,40 @@ tr:hover {
                     <input type="text" id="cad-cidade" placeholder="EX: BAURU OU TODAS" required oninput="this.value = this.value.toUpperCase()">
                 </div>
             </div>
+
+            <!-- NOVOS CAMPOS: SAFRAS E LIMITE DE SERVIÇOS -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div>
+                    <label>Meses Safra Permitidos <span style="font-size: 11px; color: #94a3b8;">(Segure CTRL para selecionar vários)</span></label>
+                    <select id="cad-safras" multiple required>
+                        <option value="TODOS" selected>TODOS</option>
+                        <option value="1º mês">1º mês</option>
+                        <option value="2º mês">2º mês</option>
+                        <option value="3º mês">3º mês</option>
+                        <option value="4º mês">4º mês</option>
+                        <option value="5º mês">5º mês</option>
+                        <option value="6º mês">6º mês</option>
+                        <option value="7º mês">7º mês</option>
+                        <option value="8º mês">8º mês</option>
+                        <option value="9º mês">9º mês</option>
+                        <option value="10º mês">10º mês</option>
+                        <option value="11º mês">11º mês</option>
+                        <option value="12º mês">12º mês</option>
+                        <option value="13º mês">13º mês</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Limite de Serviços Permitido</label>
+                    <select id="cad-limite">
+                        <option value="10">10 Contratos</option>
+                        <option value="20">20 Contratos</option>
+                        <option value="30" selected>30 Contratos</option>
+                        <option value="50">50 Contratos</option>
+                        <option value="100">100 Contratos</option>
+                        <option value="ALL">Exibir Todos</option>
+                    </select>
+                </div>
+            </div>
             
             <button type="submit" id="btn-cadastrar-submit" class="btn-success" style="margin-top: 20px; width: 100%;">CADASTRAR E AUTORIZAR USUÁRIO</button>
         </form>
@@ -359,6 +402,35 @@ tr:hover {
         <label>Cidade de Atuação</label>
         <input type="text" id="edit-cidade" oninput="this.value = this.value.toUpperCase()">
 
+        <!-- EDITAR NOVOS CAMPOS: SAFRAS E LIMITE -->
+        <label>Meses Safra Permitidos (Segure CTRL para vários)</label>
+        <select id="edit-safras" multiple>
+            <option value="TODOS">TODOS</option>
+            <option value="1º mês">1º mês</option>
+            <option value="2º mês">2º mês</option>
+            <option value="3º mês">3º mês</option>
+            <option value="4º mês">4º mês</option>
+            <option value="5º mês">5º mês</option>
+            <option value="6º mês">6º mês</option>
+            <option value="7º mês">7º mês</option>
+            <option value="8º mês">8º mês</option>
+            <option value="9º mês">9º mês</option>
+            <option value="10º mês">10º mês</option>
+            <option value="11º mês">11º mês</option>
+            <option value="12º mês">12º mês</option>
+            <option value="13º mês">13º mês</option>
+        </select>
+
+        <label>Limite de Serviços Permitido</label>
+        <select id="edit-limite">
+            <option value="10">10 Contratos</option>
+            <option value="20">20 Contratos</option>
+            <option value="30">30 Contratos</option>
+            <option value="50">50 Contratos</option>
+            <option value="100">100 Contratos</option>
+            <option value="ALL">Exibir Todos</option>
+        </select>
+
         <label>Status de Acesso</label>
         <select id="edit-status">
             <option value="ATIVO">LIBERADO / ATIVO</option>
@@ -367,7 +439,7 @@ tr:hover {
 
         <div style="display: flex; gap: 10px; margin-top: 25px; justify-content: flex-end;">
             <button type="button" class="btn-secondary" onclick="fecharModal('modal-configuracao')">CANCELAR</button>
-            <button type="button" class="btn-danger" id="btn-excluir-modal" onclick="confirmarExclusao()">EXCLUIR USUÁRIO</button>
+            <button type="button" class="btn-danger" id="btn-excluir-modal" onclick="confirmarExclusao()">EXCLUIR TÉCNICO</button>
             <button type="button" class="btn-success" id="btn-salvar-modal" onclick="salvarAlteracoes()">SALVAR ALTERAÇÕES</button>
         </div>
     </div>
@@ -380,8 +452,13 @@ tr:hover {
             <span id="historico-titulo-tecnico">📋 Atendimentos de ...</span>
             <button class="btn-danger" style="padding: 6px 12px; font-size: 12px;" onclick="fecharModal('modal-historico')">✕ FECHAR</button>
         </h3>
-        <p style="font-size: 12px; color: #94a3b8; margin-bottom: 15px;">Listagem lateral: Informações à esquerda e múltiplas evidências à direita [2].</p>
+        <p style="font-size: 12px; color: #94a3b8; margin-bottom: 15px;">Listagem lateral: Informações à esquerda e evidências à direita [2].</p>
         
+        <!-- BOTOES DE CONTROLE E MAPA DE ROTAS -->
+        <div style="display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;">
+            <button class="btn-primary" style="background: #8b5cf6; flex: 1; min-width: 150px; font-size: 12px;" onclick="abrirMapaDeRotas()">🗺️ VER ROTA E POSIÇÕES NO MAPA</button>
+        </div>
+
         <!-- Botões de Filtragem Interna de Histórico -->
         <div style="display: flex; gap: 8px; margin-bottom: 15px;">
             <button id="btn-filtro-hist-todos" class="btn-primary" style="padding: 8px 12px; font-size: 12px; flex: 1;" onclick="filtrarHistorico('TODOS')">📋 TODOS</button>
@@ -391,6 +468,18 @@ tr:hover {
 
         <div class="historico-lista-scroll" id="historico-container-cards">
             <!-- Cards de históricos gerados via JS -->
+        </div>
+    </div>
+</div>
+
+<!-- Modal do Mapa de Rotas e Atendimentos do Técnico (Gerencial) -->
+<div id="modal-mapa-rotas-gerencial" class="modal-overlay" style="z-index: 10005;">
+    <div style="background: #1e293b; max-width: 1000px; width: 95%; height: 85vh; display: flex; flex-direction: column; padding: 20px; border-radius: 10px; border: 1px solid #334155; position: relative; margin: 20px auto; box-sizing: border-box;">
+        <button style="position: absolute; top: 15px; right: 15px; background: #ef4444; color: white; border: none; font-weight: bold; width: 35px; height: 35px; border-radius: 50%; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 10010;" onclick="fecharModal('modal-mapa-rotas-gerencial')">✕</button>
+        <h3 style="margin-top: 0; color: #38bdf8; margin-bottom: 12px;" id="mapa-rotas-titulo">🗺️ Mapa de Atendimentos e Rota Percorrida</h3>
+        
+        <div style="flex: 1; height: 100%; border-radius: 8px; overflow: hidden; border: 1px solid #334155;">
+            <div id="mapa-rotas-tecnico-leaflet" style="width: 100%; height: 100%; background: #0f172a;"></div>
         </div>
     </div>
 </div>
@@ -414,10 +503,14 @@ let tecnicoAtivoLogin = "";
 let filtroHistoricoAtivo = "TODOS";
 
 // Estados globais adicionais para a Reversão de Atendimentos
-let fotosReversao = {};                // { contratoId: [ { base64: '...', equipamento: '...' } ] }
-let fotoFachadaReversao = {};          // { contratoId: 'base64' }
-let statusReversao = {};               // { contratoId: 'PRODUTIVO' | 'IMPRODUTIVO' }
-let equipamentosContratoReversao = {}; // { contratoId: [ 'equipamento1', 'equipamento2' ] }
+let fotosReversao = {};                
+let fotoFachadaReversao = {};          
+let statusReversao = {};               
+let equipamentosContratoReversao = {}; 
+
+// Instâncias Globais do Mapa Leaflet para Rotas Gerenciais
+let mapaRotasInstance = null;
+let markersRotasGroup = null;
 
 // --- INICIALIZADOR DE DADOS ---
 async function carregarDados() {
@@ -425,7 +518,6 @@ async function carregarDados() {
     tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #94a3b8; padding: 20px;">Atualizando informações no banco de dados do Azure...</td></tr>';
 
     try {
-        // 1. Busca lista de técnicos cadastrados no Azure [2]
         const responseTecnicos = await fetch('/api/gerenciarTecnicos');
         if (responseTecnicos.ok) {
             listaTecnicos = await responseTecnicos.json();
@@ -433,10 +525,8 @@ async function carregarDados() {
             console.error("Falha ao obter técnicos.");
         }
 
-        // 2. Busca histórico geral para alimentar contadores dinâmicos [2]
         await carregarHistoricoGeral();
 
-        // 3. Atualiza filtros e tabela
         atualizarFiltroEmpresas();
         renderizarTabela();
 
@@ -474,7 +564,6 @@ async function carregarHistoricoGeral() {
 
 // --- GESTÃO DE MUDANÇA DE DATA ---
 async function handleFiltroDataAlterado() {
-    // Ao alterar o período, recarrega o histórico do banco de dados para recalculação de estatísticas [2]
     await carregarHistoricoGeral();
     renderizarTabela();
 }
@@ -545,7 +634,6 @@ function renderizarTabela() {
     const valorFiltroUsuario = document.getElementById('filtro-usuario').value.toLowerCase().trim();
     const valorFiltroEmpresa = document.getElementById('filtro-empresa').value;
 
-    // Mapeia e calcula as estatísticas dinamicamente por técnico com base na lista carregada
     const tecnicosProcessados = listaTecnicos.map(tecnico => {
         const atendimentosDoTecnico = listaAtendimentos.filter(a => a.tecnicoLogin === tecnico.login);
         const prodCount = atendimentosDoTecnico.filter(a => a.status === 'PRODUTIVO').length;
@@ -558,7 +646,6 @@ function renderizarTabela() {
         };
     });
 
-    // Aplica os filtros sobre os dados de técnicos carregados
     const tecnicosFiltrados = tecnicosProcessados.filter(tecnico => {
         const matchesUsuario = tecnico.nome.toLowerCase().includes(valorFiltroUsuario) || 
                                tecnico.login.toLowerCase().includes(valorFiltroUsuario);
@@ -582,7 +669,6 @@ function renderizarTabela() {
     }
 
     tecnicosFiltrados.forEach((tecnico) => {
-        // Localiza a referência na lista original
         const indiceOriginal = listaTecnicos.findIndex(t => t.login === tecnico.login);
         
         const tr = document.createElement('tr');
@@ -610,6 +696,42 @@ function renderizarTabela() {
     });
 }
 
+// --- FÓRMULA DE HAVERSINE PARA CÁLCULO DE RAIO DE DISTÂNCIA ---
+function calcularDistanciaKm(lat1, lon1, lat2, lon2) {
+    const R = 6371; 
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+        Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+}
+
+// --- VALIDADOR DINÂMICO DE RAIO DE 500m ---
+function calcularStatusRaio(atend) {
+    const techLat = atend.latitude || (atend.localizacao && atend.localizacao.latitude);
+    const techLon = atend.longitude || (atend.localizacao && atend.localizacao.longitude);
+    
+    // Procura por coordenadas do cliente (contrato)
+    const clientLat = atend.contratoLat || atend.lat || atend.clienteLat;
+    const clientLon = atend.contratoLon || atend.lon || atend.clienteLon;
+
+    if (!techLat || !techLon || !clientLat || !clientLon) {
+        return { status: "SEM DADOS DE GPS", style: "background: #475569; color: #cbd5e1;", dentro: false, distancia: null };
+    }
+
+    const distKm = calcularDistanciaKm(parseFloat(techLat), parseFloat(techLon), parseFloat(clientLat), parseFloat(clientLon));
+    const distMetros = distKm * 1000;
+
+    if (distMetros <= 500) {
+        return { status: `DENTRO DO RAIO (${distMetros.toFixed(0)}m)`, style: "background: #14532d; color: #4ade80;", dentro: true, distancia: distMetros };
+    } else {
+        return { status: `FORA DO RAIO (${(distMetros / 1000).toFixed(2)} km)`, style: "background: #7f1d1d; color: #fca5a5;", dentro: false, distancia: distMetros };
+    }
+}
+
 // --- ADICIONAR NOVO TÉCNICO ---
 async function adicionarTecnico(event) {
     event.preventDefault();
@@ -621,14 +743,21 @@ async function adicionarTecnico(event) {
     const nome = document.getElementById('cad-nome').value.trim();
     const login = document.getElementById('cad-login').value.trim();
     const empresa = document.getElementById('cad-empresa').value.trim();
-    const cidade = document.getElementById('cad-cidade').value.trim();
+    const cityVal = document.getElementById('cad-cidade').value.trim();
+    const cidade = cityVal.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+    
+    // Captura safras e limite
+    const safrasSelecionadas = Array.from(document.getElementById('cad-safras').selectedOptions).map(opt => opt.value).join(',');
+    const limiteServicos = document.getElementById('cad-limite').value;
 
     const payload = {
         nome: nome,
         login: login,
         empresa: empresa,
         cidade: cidade,
-        status: "ATIVO"
+        status: "ATIVO",
+        safrasPermitidas: safrasSelecionadas,
+        limiteServicos: limiteServicos
     };
 
     try {
@@ -642,7 +771,7 @@ async function adicionarTecnico(event) {
             alert(`Acesso do técnico ${nome} registrado com sucesso no banco de dados!`);
             document.getElementById('form-cadastro').reset();
             toggleCadastro();
-            await carregarDados(); // Recarrega para persistir visualmente
+            await carregarDados(); 
         } else {
             const err = await response.json();
             alert("Erro ao salvar técnico no Azure: " + (err.error || "Erro desconhecido"));
@@ -655,6 +784,29 @@ async function adicionarTecnico(event) {
         btnSubmit.textContent = "CADASTRAR E AUTORIZAR USUÁRIO";
     }
 }
+
+// --- REGRA DE SELEÇÃO INTERATIVA NO FILTRO SAFRA MULTIPLE (CADASTRO E EDIÇÃO) ---
+document.getElementById('cad-safras').addEventListener('change', function() {
+    const selectedValues = Array.from(this.selectedOptions).map(opt => opt.value);
+    if (selectedValues.includes('TODOS') && selectedValues.length > 1) {
+        if (selectedValues[selectedValues.length - 1] === 'TODOS') {
+            Array.from(this.options).forEach(opt => { opt.selected = (opt.value === 'TODOS'); });
+        } else {
+            Array.from(this.options).forEach(opt => { if (opt.value === 'TODOS') opt.selected = false; });
+        }
+    }
+});
+
+document.getElementById('edit-safras').addEventListener('change', function() {
+    const selectedValues = Array.from(this.selectedOptions).map(opt => opt.value);
+    if (selectedValues.includes('TODOS') && selectedValues.length > 1) {
+        if (selectedValues[selectedValues.length - 1] === 'TODOS') {
+            Array.from(this.options).forEach(opt => { opt.selected = (opt.value === 'TODOS'); });
+        } else {
+            Array.from(this.options).forEach(opt => { if (opt.value === 'TODOS') opt.selected = false; });
+        }
+    }
+});
 
 // --- MODAL DE HISTÓRICO INDIVIDUAL DO TÉCNICO [1] ---
 function abrirHistoricoTecnico(index) {
@@ -697,10 +849,8 @@ function renderizarHistoricoCardList() {
     const containerCards = document.getElementById('historico-container-cards');
     containerCards.innerHTML = "";
 
-    // Filtra atendimentos do técnico selecionado [1]
     let atendimentosFiltrados = listaAtendimentos.filter(a => a.tecnicoLogin === tecnicoAtivoLogin);
 
-    // Se houver filtro secundário de status no modal, aplica
     if (filtroHistoricoAtivo !== 'TODOS') {
         atendimentosFiltrados = atendimentosFiltrados.filter(a => a.status === filtroHistoricoAtivo);
     }
@@ -717,6 +867,10 @@ function renderizarHistoricoCardList() {
         const tagStatusColor = atend.status === 'PRODUTIVO' ? '#4ade80' : '#f87171';
         const dataObjeto = new Date(atend.data);
         const dataFormatada = dataObjeto.toLocaleString('pt-BR');
+
+        // Calcula a validação de 500 metros
+        const rInfo = calcularStatusRaio(atend);
+        const badgeRaio = `<span class="badge" style="margin-top:5px; display:inline-block; ${rInfo.style}">${rInfo.status}</span>`;
 
         let campoEquipamentoHTML = "";
         if (atend.status === "PRODUTIVO") {
@@ -744,6 +898,7 @@ function renderizarHistoricoCardList() {
                 <strong>Cidade:</strong> ${atend.cidade}<br>
                 <strong>Data/Hora:</strong> ${dataFormatada}<br>
                 <strong>Tipo Desconexão:</strong> ${atend.tipoDesconexao || 'N/D'}<br>
+                ${badgeRaio}<br>
                 <div style="margin-top: 8px;">
                     ${campoEquipamentoHTML}
                 </div>
@@ -769,6 +924,122 @@ function renderizarHistoricoCardList() {
     });
 }
 
+// --- MAPA DE ROTAS E CHECKOUT DOS ATENDIMENTOS NO PAINEL GERENCIAL ---
+function abrirMapaDeRotas() {
+    let atendimentosFiltrados = listaAtendimentos.filter(a => a.tecnicoLogin === tecnicoAtivoLogin);
+    if (filtroHistoricoAtivo !== 'TODOS') {
+        atendimentosFiltrados = atendimentosFiltrados.filter(a => a.status === filtroHistoricoAtivo);
+    }
+
+    if (atendimentosFiltrados.length === 0) {
+        alert("Nenhum atendimento correspondente aos filtros para plotar no mapa.");
+        return;
+    }
+
+    document.getElementById('modal-mapa-rotas-gerencial').style.display = 'flex';
+
+    setTimeout(() => {
+        inicializarMapaRotas(atendimentosFiltrados);
+    }, 250);
+}
+
+function inicializarMapaRotas(atendimentos) {
+    if (mapaRotasInstance) {
+        mapaRotasInstance.invalidateSize();
+        markersRotasGroup.clearLayers();
+    } else {
+        mapaRotasInstance = L.map('mapa-rotas-tecnico-leaflet').setView([-22.3145, -49.0587], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(mapaRotasInstance);
+        markersRotasGroup = L.layerGroup().addTo(mapaRotasInstance);
+    }
+
+    const bounds = [];
+    const pontosDaRota = []; // Linha de fluxo cronológico
+
+    // Ordena os atendimentos de forma cronológica para desenhar a rota percorrida
+    const ordenadosPorData = [...atendimentos].sort((a, b) => new Date(a.data) - new Date(b.data));
+
+    ordenadosPorData.forEach((atend, index) => {
+        const techLat = atend.latitude || (atend.localizacao && atend.localizacao.latitude);
+        const techLon = atend.longitude || (atend.localizacao && atend.localizacao.longitude);
+        
+        // Coordenadas cadastradas do cliente (Contrato original)
+        const clientLat = atend.contratoLat || atend.lat || atend.clienteLat;
+        const clientLon = atend.contratoLon || atend.lon || atend.clienteLon;
+
+        const corMarker = atend.status === 'PRODUTIVO' ? '#22c55e' : '#ef4444';
+
+        // 1. Plota a posição cadastrada do Cliente (em Azul Claro)
+        if (clientLat && clientLon) {
+            const cLat = parseFloat(clientLat);
+            const cLon = parseFloat(clientLon);
+            bounds.push([cLat, cLon]);
+
+            const clientMarker = L.circleMarker([cLat, cLon], {
+                color: '#38bdf8',
+                fillColor: '#38bdf8',
+                fillOpacity: 0.5,
+                radius: 6,
+                weight: 2
+            }).addTo(markersRotasGroup);
+            clientMarker.bindPopup(`<b>Cliente (Contrato: ${atend.contrato})</b><br>Coordenada original da residência.`);
+        }
+
+        // 2. Plota o local de realização real da baixa/atendimento (checkout)
+        if (techLat && techLon) {
+            const tLat = parseFloat(techLat);
+            const tLon = parseFloat(techLon);
+            bounds.push([tLat, tLon]);
+            pontosDaRota.push([tLat, tLon]); // Adiciona o ponto ao trajeto percorrido
+
+            const techMarker = L.circleMarker([tLat, tLon], {
+                color: corMarker,
+                fillColor: corMarker,
+                fillOpacity: 0.9,
+                radius: 8,
+                weight: 3
+            }).addTo(markersRotasGroup);
+
+            const rInfo = calcularStatusRaio(atend);
+            const distTexto = rInfo.distancia !== null ? `${rInfo.distancia.toFixed(0)}m` : "Sem dados geográficos do cliente";
+
+            techMarker.bindPopup(`
+                <div style="color: #0f172a; font-family: sans-serif; font-size: 13px;">
+                    <b style="color: ${corMarker};">ATENDIMENTO #${index + 1} - ${atend.status}</b><br>
+                    <b>Contrato:</b> ${atend.contrato}<br>
+                    <b>Data da Baixa:</b> ${new Date(atend.data).toLocaleString('pt-BR')}<br>
+                    <b>Distância da Foto ao Cliente:</b> ${distTexto}<br>
+                    <b>Desconexão:</b> ${atend.tipoDesconexao || 'N/D'}<br>
+                </div>
+            `);
+
+            // Desenha linha pontilhada demonstrativa que interliga o cliente à posição de checkout
+            if (clientLat && clientLon) {
+                L.polyline([[parseFloat(clientLat), parseFloat(clientLon)], [tLat, tLon]], {
+                    color: '#94a3b8',
+                    dashArray: '5, 5',
+                    weight: 1.5
+                }).addTo(markersRotasGroup);
+            }
+        }
+    });
+
+    // 3. Desenha a linha de trajeto percorrido pelo técnico em campo (Rota)
+    if (pontosDaRota.length > 1) {
+        L.polyline(pontosDaRota, {
+            color: '#f59e0b',
+            weight: 3,
+            opacity: 0.8
+        }).addTo(markersRotasGroup);
+    }
+
+    if (bounds.length > 0) {
+        mapaRotasInstance.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
+    }
+}
+
 // --- BUSCA OS EQUIPAMENTOS DO CONTRATO NA BASE DE DADOS OU RETORNA PADRÕES ---
 async function obterEquipamentosDoContrato(contratoId) {
     try {
@@ -777,7 +1048,6 @@ async function obterEquipamentosDoContrato(contratoId) {
             const contratos = await response.json();
             const contratoEncontrado = contratos.find(c => c.contrato === contratoId);
             if (contratoEncontrado && contratoEncontrado.modelo_equip) {
-                // Divide caso existam múltiplos equipamentos descritos no mesmo contrato
                 const modelos = contratoEncontrado.modelo_equip.split(/[,/;|]/).map(m => m.trim().toUpperCase()).filter(Boolean);
                 if (modelos.length > 0) return modelos;
             }
@@ -785,7 +1055,6 @@ async function obterEquipamentosDoContrato(contratoId) {
     } catch (e) {
         console.error("Erro ao pesquisar equipamentos do contrato original:", e);
     }
-    // Lista de fallback padrão caso não localize o contrato na fila ativa
     return ["MODEM WIFI / MTA CLARO", "DECODER HD / 4K CLARO", "ONU FIBRA", "REPETIDOR WIFI", "OUTROS"];
 }
 
@@ -802,14 +1071,12 @@ async function iniciarReversao(contratoId) {
     box.style.display = "block";
     box.innerHTML = `<div style="text-align: center; color: #94a3b8; padding: 10px; font-size: 12px;">Carregando configurações do contrato...</div>`;
 
-    // Carrega dinamicamente a lista de modelos do contrato
     const equipamentos = await obterEquipamentosDoContrato(contratoId);
     equipamentosContratoReversao[contratoId] = equipamentos;
 
-    // Inicializa o estado local para este formulário de reversão
     fotosReversao[contratoId] = [];
     fotoFachadaReversao[contratoId] = null;
-    statusReversao[contratoId] = "PRODUTIVO"; // Inicia apontado para reverter como Produtivo
+    statusReversao[contratoId] = "PRODUTIVO"; 
 
     renderizarFormularioReversao(contratoId);
 }
@@ -830,9 +1097,7 @@ function renderizarFormularioReversao(contratoId) {
                 <button type="button" class="btn-primary" style="margin-top: 5px; margin-bottom: 12px; font-size: 13px;" onclick="document.getElementById('input-foto-rev-${contratoId}').click()">📸 ADICIONAR FOTO DE ETIQUETA</button>
                 <input type="file" accept="image/*" capture="environment" id="input-foto-rev-${contratoId}" style="display: none;" onchange="adicionarFotoReversao('${contratoId}', this)">
 
-                <!-- Grid de Fotos Adicionadas com Selecionadores de Equipamentos -->
                 <div id="grid-fotos-reversao-${contratoId}" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
-                    <!-- Inserido dinamicamente via renderizarFotosReversaoGrid -->
                 </div>
 
                 <label>Equipamento Retirado (MAC / Serial)</label>
@@ -921,7 +1186,6 @@ function renderizarFotosReversaoGrid(contratoId) {
         itemContainer.style.display = "flex";
         itemContainer.style.flexDirection = "column";
 
-        // Imagem
         const img = document.createElement('img');
         img.src = fotoObj.base64;
         img.style.width = "100%";
@@ -929,7 +1193,6 @@ function renderizarFotosReversaoGrid(contratoId) {
         img.style.objectFit = "cover";
         img.style.borderRadius = "4px";
 
-        // Botão para excluir a foto individualmente
         const delBtn = document.createElement('button');
         delBtn.type = "button";
         delBtn.innerHTML = "✕";
@@ -953,14 +1216,12 @@ function renderizarFotosReversaoGrid(contratoId) {
             renderizarFotosReversaoGrid(contratoId);
         };
 
-        // Rótulo
         const selectLabel = document.createElement('label');
         selectLabel.textContent = "Equipamento correspondente:";
         selectLabel.style.fontSize = "11px";
         selectLabel.style.marginTop = "8px";
         selectLabel.style.color = "#94a3b8";
 
-        // Dropdown de escolha baseado nos equipamentos do contrato original
         const select = document.createElement('select');
         select.style.padding = "6px";
         select.style.fontSize = "12px";
@@ -974,7 +1235,6 @@ function renderizarFotosReversaoGrid(contratoId) {
             select.appendChild(opt);
         });
 
-        // Atualiza o objeto ao alterar o equipamento selecionado
         select.onchange = (e) => {
             fotosReversao[contratoId][index].equipamento = e.target.value;
         };
@@ -1062,7 +1322,6 @@ async function salvarReversaoFinal(contratoId) {
     };
 
     if (statusAtivo === "PRODUTIVO") {
-        // Envia as imagens e a matriz de equipamentos associados a cada foto
         payload.fotos = fotosReversao[contratoId].map(f => f.base64);
         payload.equipamentos_associados = fotosReversao[contratoId].map(f => f.equipamento);
         payload.mac = document.getElementById(`rev-mac-${contratoId}`).value.trim();
@@ -1082,7 +1341,7 @@ async function salvarReversaoFinal(contratoId) {
         if (response.ok) {
             alert("Atendimento revertido/atualizado com sucesso no banco de dados!");
             fecharModal('modal-historico');
-            await carregarDados(); // Recarrega todas as estatísticas dinâmicas e tabelas
+            await carregarDados(); 
         } else {
             const err = await response.json();
             alert("Falha no Azure ao processar reversão: " + (err.error || "Erro interno"));
@@ -1109,6 +1368,16 @@ function abrirConfiguracao(index) {
     document.getElementById('edit-cidade').value = tecnico.cidade;
     document.getElementById('edit-status').value = tecnico.status;
 
+    // Popula as safras configuradas anteriormente
+    const selectSafras = document.getElementById('edit-safras');
+    const safrasAtivas = tecnico.safrasPermitidas ? tecnico.safrasPermitidas.split(',') : ['TODOS'];
+    Array.from(selectSafras.options).forEach(opt => {
+        opt.selected = safrasAtivas.includes(opt.value);
+    });
+
+    // Popula o limite configurado
+    document.getElementById('edit-limite').value = tecnico.limiteServicos || '30';
+
     document.getElementById('modal-subtitulo').innerHTML = `Modificando permissões para o login único: <strong>${tecnico.login}</strong>`;
     
     document.getElementById('modal-configuracao').style.display = 'flex';
@@ -1127,10 +1396,15 @@ async function salvarAlteracoes() {
     const login = document.getElementById('edit-login-hidden').value;
     const nome = document.getElementById('edit-nome').value.trim();
     const empresa = document.getElementById('edit-empresa').value.trim();
-    const cidade = document.getElementById('edit-cidade').value.trim();
+    const cityVal = document.getElementById('edit-cidade').value.trim();
+    const cidade = cityVal.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
     const status = document.getElementById('edit-status').value;
 
-    const payload = { login, nome, empresa, cidade, status };
+    // Captura safras e limites selecionados
+    const safrasSelecionadas = Array.from(document.getElementById('edit-safras').selectedOptions).map(opt => opt.value).join(',');
+    const limiteServicos = document.getElementById('edit-limite').value;
+
+    const payload = { login, nome, empresa, cidade, status, safrasPermitidas: safrasSelecionadas, limiteServicos: limiteServicos };
 
     try {
         const response = await fetch('/api/gerenciarTecnicos', {
@@ -1185,7 +1459,7 @@ async function confirmarExclusao() {
             alert("Erro de rede ao excluir registro.");
         } finally {
             btnExcluir.disabled = false;
-            btnExcluir.textContent = "EXCLUIR USUÁRIO";
+            btnExcluir.textContent = "EXCLUIR TÉCNICO";
         }
     }
 }
