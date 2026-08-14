@@ -37,7 +37,10 @@ app.http('gerenciarTecnicos', {
                         login: entity.rowKey, 
                         empresa: entity.Empresa || 'N/D',
                         cidade: entity.CidadeAtuacao || 'TODAS',
-                        status: entity.Status || 'ATIVO'
+                        status: entity.Status || 'ATIVO',
+                        // MAPEAMENTO DOS NOVOS CAMPOS PARA RETORNO AO FRONTEND
+                        safrasPermitidas: entity.SafrasPermitidas || 'TODOS',
+                        limiteServicos: entity.LimiteServicos || '30'
                     });
                 }
                 return { status: 200, jsonBody: lista };
@@ -59,7 +62,10 @@ app.http('gerenciarTecnicos', {
                     Nome: data.nome.trim().toUpperCase(),
                     Empresa: data.empresa.trim().toUpperCase(),
                     CidadeAtuacao: data.cidade.trim().toUpperCase(),
-                    Status: data.status || 'ATIVO'
+                    Status: data.status || 'ATIVO',
+                    // SALVAMENTO DOS NOVOS CAMPOS NO AZURE TABLE STORAGE
+                    SafrasPermitidas: data.safrasPermitidas ? data.safrasPermitidas.trim() : 'TODOS',
+                    LimiteServicos: data.limiteServicos ? data.limiteServicos.trim() : '30'
                 };
 
                 await tableClient.upsertEntity(entidadeTecnico, "Replace");
