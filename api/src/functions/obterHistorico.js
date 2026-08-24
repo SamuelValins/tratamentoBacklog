@@ -11,14 +11,24 @@ app.http('obterHistorico', {
             const dataFim = request.query.get('dataFim');       
 
             const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING || process.env.AzureWebJobsStorage;
+            
+            if (!connectionString) {
+                return {
+                    status: 500,
+                    jsonBody: { error: "Configuração de conexão ausente: AZURE_STORAGE_CONNECTION_STRING ou AzureWebJobsStorage não definidos no ambiente." }
+                };
+            }
+
             const tableClient = TableClient.fromConnectionString(connectionString, 'HistoricoAtendimentos');
 
             let queryFilter = "";
 
+            // Filtro por login de técnico se especificado
             if (tecnicoLogin) {
                 queryFilter = `PartitionKey eq '${tecnicoLogin.trim().toLowerCase()}'`;
             }
 
+            // Filtro de intervalo de datas (DataHora ISO)
             if (dataInicio) {
                 const fInicio = `DataHora ge '${dataInicio}T00:00:00.000Z'`;
                 queryFilter = queryFilter ? `${queryFilter} and ${fInicio}` : fInicio;
@@ -37,13 +47,17 @@ app.http('obterHistorico', {
                 const fotosArray = entity.ImagensUrls ? entity.ImagensUrls.split(',') : [];
 
                 atendimentos.push({
-                    tecnicoLogin: entity.partitionKey, // Corrigido para "partitionKey" minúsculo (Padrão SDK)
-                    contrato: entity.rowKey,          // Corrigido para "rowKey" minúsculo (Padrão SDK)
-                    cidade: entity.Cidade,
+                    tecnicoLogin: entity.partitionKey || entity.PartitionKey,
+                    contrato: entity.rowKey || entity.RowKey,
+                    cidade: entity.Cidade || '',
                     data: entity.DataHora,
                     mac: entity.Mac || '',
                     tipoDesconexao: entity.TipoDesconexao || 'N/D',
                     status: entity.Status,
+                    codigoBaixa: entity.CodigoBaixa || entity.codigo_baixa || '',
+                    observacao: entity.Observacao || entity.observacao || '',
+                    latitude: entity.Latitude !== undefined ? parseFloat(entity.Latitude) : null,
+                    longitude: entity.Longitude !== undefined ? parseFloat(entity.Longitude) : null,
                     fotos: fotosArray
                 });
             }
