@@ -246,7 +246,7 @@ tr:hover {
 
 <div class="header">
     <span>⚙️ Painel Gerencial - Administração de Técnicos</span>
-    <button class="btn-nav" onclick="carregarDados()">ATUALIZAR DADOS 🔄</button>
+    <button class="btn-secondary" onclick="carregarDados()">ATUALIZAR DADOS 🔄</button>
 </div>
 
 <div class="container">
@@ -282,7 +282,6 @@ tr:hover {
                 </div>
             </div>
 
-            <!-- NOVOS CAMPOS: SAFRAS E LIMITE DE SERVIÇOS -->
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                 <div>
                     <label>Meses Safra Permitidos <span style="font-size: 11px; color: #94a3b8;">(Segure CTRL para selecionar vários)</span></label>
@@ -402,7 +401,6 @@ tr:hover {
         <label>Cidade de Atuação</label>
         <input type="text" id="edit-cidade" oninput="this.value = this.value.toUpperCase()">
 
-        <!-- EDITAR NOVOS CAMPOS: SAFRAS E LIMITE -->
         <label>Meses Safra Permitidos (Segure CTRL para vários)</label>
         <select id="edit-safras" multiple>
             <option value="TODOS">TODOS</option>
@@ -466,9 +464,7 @@ tr:hover {
             <button id="btn-filtro-hist-improd" class="btn-secondary" style="padding: 8px 12px; font-size: 12px; flex: 1;" onclick="filtrarHistorico('IMPRODUTIVO')">👎 IMPRODUTIVO</button>
         </div>
 
-        <div class="historico-lista-scroll" id="historico-container-cards">
-            <!-- Cards de históricos gerados via JS -->
-        </div>
+        <div class="historico-lista-scroll" id="historico-container-cards"></div>
     </div>
 </div>
 
@@ -493,22 +489,19 @@ tr:hover {
 </div>
 
 <script>
-// --- VARIÁVEIS DE ESTADO DO BANCO DE DADOS ---
+// --- VARIÁVEIS DE ESTADO ---
 let listaTecnicos = [];
 let listaAtendimentos = [];
 
-// Variáveis de filtros visuais
 let mainFiltroStatus = "TODOS";
 let tecnicoAtivoLogin = "";
 let filtroHistoricoAtivo = "TODOS";
 
-// Estados globais adicionais para a Reversão de Atendimentos
 let fotosReversao = {};                
 let fotoFachadaReversao = {};          
 let statusReversao = {};               
 let equipamentosContratoReversao = {}; 
 
-// Instâncias Globais do Mapa Leaflet para Rotas Gerenciais
 let mapaRotasInstance = null;
 let markersRotasGroup = null;
 
@@ -536,7 +529,6 @@ async function carregarDados() {
     }
 }
 
-// --- BUSCA HISTÓRICO GERAL (SWA / AZURE FUNCTIONS) [2] ---
 async function carregarHistoricoGeral() {
     const dataInicioVal = document.getElementById('filtro-data-inicio').value;
     const dataFimVal = document.getElementById('filtro-data-fim').value;
@@ -562,13 +554,11 @@ async function carregarHistoricoGeral() {
     }
 }
 
-// --- GESTÃO DE MUDANÇA DE DATA ---
 async function handleFiltroDataAlterado() {
     await carregarHistoricoGeral();
     renderizarTabela();
 }
 
-// --- CONTROLE DE EXIBIÇÃO DO FORMULÁRIO DE CADASTRO ---
 function toggleCadastro() {
     const card = document.getElementById('card-cadastro');
     const btn = document.getElementById('btn-toggle-cadastro');
@@ -583,7 +573,6 @@ function toggleCadastro() {
     }
 }
 
-// --- CONFIGURA O FILTRO DE RESULTADO NO PAINEL PRINCIPAL ---
 function setMainFiltroStatus(status) {
     mainFiltroStatus = status;
     atualizarBotoesFiltroMain();
@@ -604,7 +593,6 @@ function atualizarBotoesFiltroMain() {
     else if (mainFiltroStatus === 'IMPRODUTIVO') btnImprod.className = "btn-danger";
 }
 
-// --- ATUALIZAÇÃO DINÂMICA DO FILTRO DE EMPRESAS ---
 function atualizarFiltroEmpresas() {
     const selectEmpresa = document.getElementById('filtro-empresa');
     const valorSelecionadoAtual = selectEmpresa.value || "TODAS";
@@ -626,7 +614,6 @@ function atualizarFiltroEmpresas() {
     }
 }
 
-// --- RENDERIZADOR DA TABELA COM FILTROS DE BUSCA E DATA DINÂMICA [2] ---
 function renderizarTabela() {
     const tbody = document.getElementById('tabela-usuarios-corpo');
     tbody.innerHTML = "";
@@ -647,8 +634,8 @@ function renderizarTabela() {
     });
 
     const tecnicosFiltrados = tecnicosProcessados.filter(tecnico => {
-        const matchesUsuario = tecnico.nome.toLowerCase().includes(valorFiltroUsuario) || 
-                               tecnico.login.toLowerCase().includes(valorFiltroUsuario);
+        const matchesUsuario = (tecnico.nome || '').toLowerCase().includes(valorFiltroUsuario) || 
+                               (tecnico.login || '').toLowerCase().includes(valorFiltroUsuario);
         
         const matchesEmpresa = (valorFiltroEmpresa === "TODAS") || 
                                (tecnico.empresa === valorFiltroEmpresa);
@@ -696,7 +683,6 @@ function renderizarTabela() {
     });
 }
 
-// --- FÓRMULA DE HAVERSINE PARA CÁLCULO DE RAIO DE DISTÂNCIA ---
 function calcularDistanciaKm(lat1, lon1, lat2, lon2) {
     const R = 6371; 
     const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -709,12 +695,10 @@ function calcularDistanciaKm(lat1, lon1, lat2, lon2) {
     return R * c;
 }
 
-// --- VALIDADOR DINÂMICO DE RAIO DE 500m ---
 function calcularStatusRaio(atend) {
     const techLat = atend.latitude || (atend.localizacao && atend.localizacao.latitude);
     const techLon = atend.longitude || (atend.localizacao && atend.localizacao.longitude);
     
-    // Procura por coordenadas do cliente (contrato)
     const clientLat = atend.contratoLat || atend.lat || atend.clienteLat;
     const clientLon = atend.contratoLon || atend.lon || atend.clienteLon;
 
@@ -732,7 +716,6 @@ function calcularStatusRaio(atend) {
     }
 }
 
-// --- ADICIONAR NOVO TÉCNICO ---
 async function adicionarTecnico(event) {
     event.preventDefault();
 
@@ -746,7 +729,6 @@ async function adicionarTecnico(event) {
     const cityVal = document.getElementById('cad-cidade').value.trim();
     const cidade = cityVal.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
     
-    // Captura safras e limite
     const safrasSelecionadas = Array.from(document.getElementById('cad-safras').selectedOptions).map(opt => opt.value).join(',');
     const limiteServicos = document.getElementById('cad-limite').value;
 
@@ -785,7 +767,6 @@ async function adicionarTecnico(event) {
     }
 }
 
-// --- REGRA DE SELEÇÃO INTERATIVA NO FILTRO SAFRA MULTIPLE (CADASTRO E EDIÇÃO) ---
 document.getElementById('cad-safras').addEventListener('change', function() {
     const selectedValues = Array.from(this.selectedOptions).map(opt => opt.value);
     if (selectedValues.includes('TODOS') && selectedValues.length > 1) {
@@ -808,7 +789,6 @@ document.getElementById('edit-safras').addEventListener('change', function() {
     }
 });
 
-// --- MODAL DE HISTÓRICO INDIVIDUAL DO TÉCNICO [1] ---
 function abrirHistoricoTecnico(index) {
     const tecnico = listaTecnicos[index];
     tecnicoAtivoLogin = tecnico.login;
@@ -822,14 +802,12 @@ function abrirHistoricoTecnico(index) {
     document.getElementById('modal-historico').style.display = 'flex';
 }
 
-// --- FILTRO DE HISTÓRICO INTERNO ---
 function filtrarHistorico(status) {
     filtroHistoricoAtivo = status;
     atualizarBotoesFiltroHistorico();
     renderizarHistoricoCardList();
 }
 
-// --- ATUALIZA A CLASSE VISUAL DOS BOTÕES DO MODAL ---
 function atualizarBotoesFiltroHistorico() {
     const btnTodos = document.getElementById('btn-filtro-hist-todos');
     const btnProd = document.getElementById('btn-filtro-hist-prod');
@@ -844,7 +822,6 @@ function atualizarBotoesFiltroHistorico() {
     else if (filtroHistoricoAtivo === 'IMPRODUTIVO') btnImprod.className = "btn-danger";
 }
 
-// --- DESENHA A LISTA DE CARDS DE ACORDO COM FILTRO E DATA ATIVOS ---
 function renderizarHistoricoCardList() {
     const containerCards = document.getElementById('historico-container-cards');
     containerCards.innerHTML = "";
@@ -868,7 +845,6 @@ function renderizarHistoricoCardList() {
         const dataObjeto = new Date(atend.data);
         const dataFormatada = dataObjeto.toLocaleString('pt-BR');
 
-        // Calcula a validação de 500 metros
         const rInfo = calcularStatusRaio(atend);
         const badgeRaio = `<span class="badge" style="margin-top:5px; display:inline-block; ${rInfo.style}">${rInfo.status}</span>`;
 
@@ -924,7 +900,6 @@ function renderizarHistoricoCardList() {
     });
 }
 
-// --- MAPA DE ROTAS E CHECKOUT DOS ATENDIMENTOS NO PAINEL GERENCIAL ---
 function abrirMapaDeRotas() {
     let atendimentosFiltrados = listaAtendimentos.filter(a => a.tecnicoLogin === tecnicoAtivoLogin);
     if (filtroHistoricoAtivo !== 'TODOS') {
@@ -956,22 +931,19 @@ function inicializarMapaRotas(atendimentos) {
     }
 
     const bounds = [];
-    const pontosDaRota = []; // Linha de fluxo cronológico
+    const pontosDaRota = [];
 
-    // Ordena os atendimentos de forma cronológica para desenhar a rota percorrida
     const ordenadosPorData = [...atendimentos].sort((a, b) => new Date(a.data) - new Date(b.data));
 
     ordenadosPorData.forEach((atend, index) => {
         const techLat = atend.latitude || (atend.localizacao && atend.localizacao.latitude);
         const techLon = atend.longitude || (atend.localizacao && atend.localizacao.longitude);
         
-        // Coordenadas cadastradas do cliente (Contrato original)
         const clientLat = atend.contratoLat || atend.lat || atend.clienteLat;
         const clientLon = atend.contratoLon || atend.lon || atend.clienteLon;
 
         const corMarker = atend.status === 'PRODUTIVO' ? '#22c55e' : '#ef4444';
 
-        // 1. Plota a posição cadastrada do Cliente (em Azul Claro)
         if (clientLat && clientLon) {
             const cLat = parseFloat(clientLat);
             const cLon = parseFloat(clientLon);
@@ -987,12 +959,11 @@ function inicializarMapaRotas(atendimentos) {
             clientMarker.bindPopup(`<b>Cliente (Contrato: ${atend.contrato})</b><br>Coordenada original da residência.`);
         }
 
-        // 2. Plota o local de realização real da baixa/atendimento (checkout)
         if (techLat && techLon) {
             const tLat = parseFloat(techLat);
             const tLon = parseFloat(techLon);
             bounds.push([tLat, tLon]);
-            pontosDaRota.push([tLat, tLon]); // Adiciona o ponto ao trajeto percorrido
+            pontosDaRota.push([tLat, tLon]);
 
             const techMarker = L.circleMarker([tLat, tLon], {
                 color: corMarker,
@@ -1015,7 +986,6 @@ function inicializarMapaRotas(atendimentos) {
                 </div>
             `);
 
-            // Desenha linha pontilhada demonstrativa que interliga o cliente à posição de checkout
             if (clientLat && clientLon) {
                 L.polyline([[parseFloat(clientLat), parseFloat(clientLon)], [tLat, tLon]], {
                     color: '#94a3b8',
@@ -1026,7 +996,6 @@ function inicializarMapaRotas(atendimentos) {
         }
     });
 
-    // 3. Desenha a linha de trajeto percorrido pelo técnico em campo (Rota)
     if (pontosDaRota.length > 1) {
         L.polyline(pontosDaRota, {
             color: '#f59e0b',
@@ -1040,7 +1009,6 @@ function inicializarMapaRotas(atendimentos) {
     }
 }
 
-// --- BUSCA OS EQUIPAMENTOS DO CONTRATO NA BASE DE DADOS OU RETORNA PADRÕES ---
 async function obterEquipamentosDoContrato(contratoId) {
     try {
         const response = await fetch(`/api/obterContratos?limit=ALL`);
@@ -1058,7 +1026,6 @@ async function obterEquipamentosDoContrato(contratoId) {
     return ["MODEM WIFI / MTA CLARO", "DECODER HD / 4K CLARO", "ONU FIBRA", "REPETIDOR WIFI", "OUTROS"];
 }
 
-// --- FUNÇÃO PARA INICIAR O PAINEL DE REVERSÃO ---
 async function iniciarReversao(contratoId) {
     const box = document.getElementById(`box-reversao-${contratoId}`);
     if (!box) return;
@@ -1081,7 +1048,6 @@ async function iniciarReversao(contratoId) {
     renderizarFormularioReversao(contratoId);
 }
 
-// --- RENDERIZADOR DO SUB-FORMULÁRIO DE REVERSÃO ---
 function renderizarFormularioReversao(contratoId) {
     const box = document.getElementById(`box-reversao-${contratoId}`);
     if (!box) return;
@@ -1097,8 +1063,7 @@ function renderizarFormularioReversao(contratoId) {
                 <button type="button" class="btn-primary" style="margin-top: 5px; margin-bottom: 12px; font-size: 13px;" onclick="document.getElementById('input-foto-rev-${contratoId}').click()">📸 ADICIONAR FOTO DE ETIQUETA</button>
                 <input type="file" accept="image/*" capture="environment" id="input-foto-rev-${contratoId}" style="display: none;" onchange="adicionarFotoReversao('${contratoId}', this)">
 
-                <div id="grid-fotos-reversao-${contratoId}" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
-                </div>
+                <div id="grid-fotos-reversao-${contratoId}" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;"></div>
 
                 <label>Equipamento Retirado (MAC / Serial)</label>
                 <input type="text" id="rev-mac-${contratoId}" placeholder="EX: MAC DO EQUIPAMENTO" oninput="this.value = this.value.toUpperCase()">
@@ -1146,7 +1111,6 @@ function renderizarFormularioReversao(contratoId) {
     }
 }
 
-// --- FLUXO DE ADICIONAR FOTO DE REVERSÃO ---
 function adicionarFotoReversao(contratoId, input) {
     const file = input.files[0];
     if (!file) return;
@@ -1167,7 +1131,6 @@ function adicionarFotoReversao(contratoId, input) {
     input.value = "";
 }
 
-// --- DESENHA O GRID COM SELEÇÃO DO MODELO DO CONTRATO ABAIXO DA IMAGEM ---
 function renderizarFotosReversaoGrid(contratoId) {
     const grid = document.getElementById(`grid-fotos-reversao-${contratoId}`);
     if (!grid) return;
@@ -1248,7 +1211,6 @@ function renderizarFotosReversaoGrid(contratoId) {
     });
 }
 
-// --- FLUXO DE ADICIONAR E RETIRAR CAPA DA RESIDÊNCIA (REVERSÃO) ---
 function definirFotoFachadaReversao(contratoId, input) {
     const file = input.files[0];
     if (!file) return;
@@ -1271,19 +1233,16 @@ function definirFotoFachadaReversao(contratoId, input) {
     input.value = "";
 }
 
-// --- ALTERNADOR DE STATUS NO FLUXO DE REVERSÃO ---
 function setReversaoStatus(contratoId, status) {
     statusReversao[contratoId] = status;
     renderizarFormularioReversao(contratoId);
 }
 
-// --- FECHADOR INLINE ---
 function cancelarReversao(contratoId) {
     const box = document.getElementById(`box-reversao-${contratoId}`);
     if (box) box.style.display = "none";
 }
 
-// --- ENVIO DAS ALTERAÇÕES NO BACKEND (REVERTER ATENDIMENTO) ---
 async function salvarReversaoFinal(contratoId) {
     const statusAtivo = statusReversao[contratoId];
 
@@ -1346,13 +1305,11 @@ async function salvarReversaoFinal(contratoId) {
     }
 }
 
-// --- DETALHADOR DE EXPANSÃO DE IMAGENS ---
 function ampliarImagem(src) {
     document.getElementById('img-ampliada').src = src;
     document.getElementById('modal-imagem-expandida').style.display = 'flex';
 }
 
-// --- CONFIGURAÇÃO (MODAL DE USUÁRIO) ---
 function abrirConfiguracao(index) {
     const tecnico = listaTecnicos[index];
     
@@ -1362,16 +1319,13 @@ function abrirConfiguracao(index) {
     document.getElementById('edit-cidade').value = tecnico.cidade;
     document.getElementById('edit-status').value = tecnico.status;
 
-    // Popula as safras configuradas anteriormente
     const selectSafras = document.getElementById('edit-safras');
     const safrasAtivas = tecnico.safrasPermitidas ? tecnico.safrasPermitidas.split(',') : ['TODOS'];
     Array.from(selectSafras.options).forEach(opt => {
         opt.selected = safrasAtivas.includes(opt.value);
     });
 
-    // Popula o limite configurado
     document.getElementById('edit-limite').value = tecnico.limiteServicos || '30';
-
     document.getElementById('modal-subtitulo').innerHTML = `Modificando permissões para o login único: <strong>${tecnico.login}</strong>`;
     
     document.getElementById('modal-configuracao').style.display = 'flex';
@@ -1381,7 +1335,6 @@ function fecharModal(idModal) {
     document.getElementById(idModal).style.display = 'none';
 }
 
-// --- SALVAR EDIÇÕES DE TÉCNICO ---
 async function salvarAlteracoes() {
     const btnSalvar = document.getElementById('btn-salvar-modal');
     btnSalvar.disabled = true;
@@ -1394,7 +1347,6 @@ async function salvarAlteracoes() {
     const cidade = cityVal.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
     const status = document.getElementById('edit-status').value;
 
-    // Captura safras e limites selecionados
     const safrasSelecionadas = Array.from(document.getElementById('edit-safras').selectedOptions).map(opt => opt.value).join(',');
     const limiteServicos = document.getElementById('edit-limite').value;
 
@@ -1424,7 +1376,6 @@ async function salvarAlteracoes() {
     }
 }
 
-// --- REMOVER TÉCNICO PERMANENTEMENTE ---
 async function confirmarExclusao() {
     const login = document.getElementById('edit-login-hidden').value;
     const nome = document.getElementById('edit-nome').value;
@@ -1458,7 +1409,6 @@ async function confirmarExclusao() {
     }
 }
 
-// Inicializa a tabela e os seletores ao carregar a página
 window.onload = () => {
     carregarDados();
 };
