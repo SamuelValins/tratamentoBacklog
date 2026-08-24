@@ -9,6 +9,9 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
+<!-- Biblioteca SheetJS para Geração e Extração em XLSX (Excel) -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
 <style>
 body {
     margin: 0;
@@ -305,12 +308,24 @@ button {
         
         <button id="btn-carregar" class="btn-primary">CARREGAR FILA DA MINHA ÁREA E ORDENAR</button>
         
-        <!-- Botão Dinâmico para abrir o Mapa do Backlog -->
-        <button id="btn-mapa-backlog" class="btn-primary" style="background: #8b5cf6; display: none;" onclick="abrirMapaBacklog()">MAPA GERAL DO BACKLOG 🗺️</button>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+            <!-- Botão Dinâmico para abrir o Mapa do Backlog -->
+            <button id="btn-mapa-backlog" class="btn-primary" style="background: #8b5cf6; margin-top: 0; display: none;" onclick="abrirMapaBacklog()">MAPA GERAL 🗺️</button>
+            <!-- Botão Dinâmico para Extração XLSX dos Contratos -->
+            <button id="btn-exportar-xlsx" class="btn-success" style="background: #059669; margin-top: 0; display: none;" onclick="exportarContratosParaXLSX()">EXTRAIR XLSX 📥</button>
+        </div>
     </div>
 
     <!-- Container dinâmico para Alertas/Fallback do GPS -->
     <div id="alert-gps-global"></div>
+
+    <!-- Card de Retorno da Busca Específica de Contrato -->
+    <div class="card" id="card-aviso-busca-especifica" style="display: none; background: #1e293b; border: 1px solid #38bdf8;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 13px; color: #38bdf8; font-weight: bold;">🔎 Visualizando resultado de Contrato Específico</span>
+            <button type="button" class="btn-secondary" style="width: auto; padding: 6px 12px; font-size: 12px; margin: 0; background: #ef4444;" onclick="voltarParaFilaGeral()">✕ VOLTAR À FILA GERAL</button>
+        </div>
+    </div>
 
     <!-- Card de Seleção de Bairro -->
     <div class="card" id="card-bairro-selecao" style="display: none; background: #1e293b; border: 1px solid #f59e0b;">
@@ -381,6 +396,9 @@ let todosContratosOrdenados = [];
 let indexExibicaoAtual = 0;
 let limiteExibicao = 30; 
 let contratosCarregadosTemporarios = []; 
+
+// Backup da fila geral para restauração rápida após busca específica
+let backupFilaGeral = [];
 
 let filtroTipoMapa = 'ALL';
 
@@ -839,6 +857,9 @@ async function prosseguirProcessamentoContratos(contratosParaProcessar, limit) {
         }
     }
 
+    // Salva o backup da lista completa da fila geral
+    backupFilaGeral = [...todosContratosOrdenados];
+
     const blocoExibicao = todosContratosOrdenados.slice(indexExibicaoAtual, indexExibicaoAtual + limiteExibicao);
 
     if (blocoExibicao.length === 0) {
@@ -860,6 +881,8 @@ async function prosseguirProcessamentoContratos(contratosParaProcessar, limit) {
     }
 
     document.getElementById('btn-mapa-backlog').style.display = 'block';
+    document.getElementById('btn-exportar-xlsx').style.display = 'block';
+    document.getElementById('card-aviso-busca-especifica').style.display = 'none';
     btnCarregar.disabled = false;
 }
 
@@ -884,8 +907,12 @@ async function buscarContratoEspecifico() {
             } else {
                 todosContratosOrdenados = contratos;
                 renderizarContratos(contratos);
-                document.getElementById('btn-mapa-backlog').style.display = 'none';
+                
+                // Exibe card com opção de retornar para a fila anterior
+                document.getElementById('card-aviso-busca-especifica').style.display = 'block';
                 document.getElementById('card-bairro-selecao').style.display = 'none';
+                document.getElementById('btn-mapa-backlog').style.display = 'none';
+                document.getElementById('btn-exportar-xlsx').style.display = 'block';
             }
         } else {
             alert("Erro ao buscar o contrato especificado.");
@@ -896,6 +923,76 @@ async function buscarContratoEspecifico() {
     } finally {
         btnCarregar.disabled = false;
         btnCarregar.textContent = "CARREGAR FILA DA MINHA ÁREA E ORDENAR";
+    }
+}
+
+// --- RESTAURA A FILA GERAL APÓS UMA BUSCA ESPECÍFICA ---
+function voltarParaFilaGeral() {
+    document.getElementById('input-busca-contrato').value = "";
+    document.getElementById('card-aviso-busca-especifica').style.display = 'none';
+
+    if (backupFilaGeral && backupFilaGeral.length > 0) {
+        todosContratosOrdenados = [...backupFilaGeral];
+        renderizarContratos(todosContratosOrdenados.slice(0, limiteExibicao));
+        document.getElementById('btn-mapa-backlog').style.display = 'block';
+        document.getElementById('btn-exportar-xlsx').style.display = 'block';
+    } else {
+        document.getElementById('lista-contratos').innerHTML = "";
+        alert("Clique em 'CARREGAR FILA DA MINHA ÁREA E ORDENAR' para gerar uma nova rota.");
+    }
+}
+
+// --- EXTRAÇÃO DOS CONTRATOS CARREGADOS EM FORMATO XLSX (EXCEL) ---
+function exportarContratosParaXLSX() {
+    const contratosParaExportar = todosContratosOrdenados.length > 0 ? todosContratosOrdenados : contratosCarregadosTemporarios;
+
+    if (!contratosParaExportar || contratosParaExportar.length === 0) {
+        alert("Nenhum contrato carregado na tela para exportação.");
+        return;
+    }
+
+    try {
+        const dadosPlanilha = contratosParaExportar.map((c, index) => {
+            const safraTratada = normalizarSafra(extrairSafraDoContrato(c));
+            return {
+                "Item": index + 1,
+                "Contrato": c.contrato || "N/D",
+                "Titular": c.titular || "N/D",
+                "Cidade": c.cidade || "",
+                "Bairro": c.bairro || "",
+                "Endereço Completo": `${c.endereco || ''}${c.complemento ? ' - ' + c.complemento : ''}`,
+                "Tel Residencial": c.tel_res || "",
+                "Tel Celular": c.tel_cel || "",
+                "Tipo de Desconexão": c.tipo || "DESCONEXÃO",
+                "Mês Safra": safraTratada,
+                "Qtd Equipamentos": c.qtd_equip || 1,
+                "Modelos de Equipamentos": c.modelo_equip || "N/D",
+                "MACs dos Equipamentos": c.mac || "N/D",
+                "Observações": c.obs || "",
+                "Latitude": (c.lat && c.lat !== 1.0) ? c.lat : "",
+                "Longitude": (c.lon && c.lon !== 1.0) ? c.lon : "",
+                "Distância Estimada (Km)": c.distanciaDireta ? c.distanciaDireta.toFixed(2) : ""
+            };
+        });
+
+        // Cria a pasta de trabalho e a aba com SheetJS
+        const ws = XLSX.utils.json_to_sheet(dadosPlanilha);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Contratos_Retirada");
+
+        // Ajusta largura visual automática das colunas
+        const maxCols = Object.keys(dadosPlanilha[0] || {}).map(key => ({
+            wch: Math.max(key.length + 3, 14)
+        }));
+        ws['!cols'] = maxCols;
+
+        const dataAtual = new Date().toISOString().slice(0, 10);
+        const nomeArquivo = `Extracao_Contratos_Retirada_${dataAtual}.xlsx`;
+
+        XLSX.writeFile(wb, nomeArquivo);
+    } catch (e) {
+        console.error("Erro ao gerar XLSX:", e);
+        alert("Falha ao exportar planilha Excel. Verifique se o navegador possui permissão de download.");
     }
 }
 
@@ -923,6 +1020,7 @@ document.getElementById('btn-carregar').addEventListener('click', async () => {
 
     const btnCarregar = document.getElementById('btn-carregar');
     document.getElementById('card-bairro-selecao').style.display = 'none';
+    document.getElementById('card-aviso-busca-especifica').style.display = 'none';
 
     btnCarregar.disabled = true;
     btnCarregar.textContent = "OBTENDO GEOLOCALIZAÇÃO...";
@@ -956,7 +1054,6 @@ document.getElementById('btn-carregar').addEventListener('click', async () => {
 
     let contratosFiltrados = [];
     try {
-        // Envia o login do técnico para que o backend faça a divisão de área exclusiva
         const response = await fetch(`/api/obterContratos?cidade=${cidade}&safra=${safra}&tipo=${tipo}&limit=${limiteSwaQuery}&tecnicoLogin=${encodeURIComponent(login)}`);
         if (response.ok) {
             contratosFiltrados = await response.json();
