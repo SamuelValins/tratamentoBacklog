@@ -12,6 +12,9 @@
 <!-- Biblioteca SheetJS para Geração e Extração em XLSX (Excel) -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
+<!-- Biblioteca jsPDF para Geração de PDF Oficial da Claro -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
 <style>
 body {
     margin: 0;
@@ -21,14 +24,16 @@ body {
 }
 .header {
     background: #1e293b;
-    padding: 20px;
-    font-size: 20px;
+    padding: 15px 20px;
+    font-size: 18px;
     font-weight: bold;
     display: flex;
     justify-content: space-between;
     align-items: center;
     border-bottom: 1px solid #334155;
     box-sizing: border-box;
+    flex-wrap: wrap;
+    gap: 8px;
 }
 .header span {
     font-size: 18px;
@@ -36,9 +41,9 @@ body {
 .btn-nav {
     background: #475569;
     color: white;
-    padding: 8px 15px;
+    padding: 8px 14px;
     border-radius: 6px;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: bold;
     cursor: pointer;
     border: none;
@@ -49,7 +54,7 @@ body {
 }
 .container {
     padding: 20px;
-    max-width: 600px;
+    max-width: 650px;
     margin: 0 auto;
 }
 .card {
@@ -61,42 +66,42 @@ body {
 }
 label {
     display: block;
-    margin-top: 15px;
-    font-size: 14px;
+    margin-top: 14px;
+    font-size: 13px;
     color: #94a3b8;
+    font-weight: bold;
 }
 input, select, textarea {
     width: 100%;
-    padding: 12px;
+    padding: 11px 12px;
     border-radius: 8px;
     border: 1px solid #334155;
     background: #0f172a;
     color: white;
-    margin-top: 5px;
+    margin-top: 4px;
     box-sizing: border-box;
     font-family: inherit;
-    font-size: 14px;
+    font-size: 13px;
 }
-
 select[multiple] {
     height: 110px;
     overflow-y: auto;
 }
 button {
     color: white;
-    padding: 14px 20px;
+    padding: 12px 18px;
     border: none;
     border-radius: 8px;
     width: 100%;
     font-weight: bold;
     cursor: pointer;
-    font-size: 16px;
+    font-size: 14px;
     transition: background 0.2s;
 }
 .btn-primary { background: #2563eb; margin-top: 15px; }
 .btn-primary:active { background: #1d4ed8; }
 .btn-secondary { background: #475569; margin-top: 10px; }
-.btn-warning { background: #f59e0b; margin-top: 10px; }
+.btn-warning { background: #f59e0b; margin-top: 10px; color: #0f172a; }
 .btn-success { background: #22c55e; margin-top: 10px; }
 .btn-success:disabled {
     background: #1e3a1e;
@@ -111,7 +116,7 @@ button {
     border: 1px solid #334155;
     color: #94a3b8;
     font-size: 13px;
-    padding: 12px;
+    padding: 11px;
     flex: 1;
     cursor: pointer;
     border-radius: 8px;
@@ -190,8 +195,17 @@ button {
     box-sizing: border-box;
 }
 
+.grid-2col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
 /* RESPONSIVIDADE PARA O MODAL E BOTOES DE FILTRO DO MAPA */
 @media (max-width: 768px) {
+    .grid-2col {
+        grid-template-columns: 1fr;
+    }
     #modal-mapa-backlog > div {
         height: 95vh !important;
         padding: 10px !important;
@@ -241,7 +255,8 @@ button {
 
 <div class="header">
     <span>🚗 Rota de Retirada</span>
-    <div style="display: flex; gap: 8px;">
+    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <button class="btn-nav" style="background: #e11d48;" onclick="abrirModalOS(null)">NOVA OS (EM BRANCO) 📄</button>
         <button id="btn-historico" class="btn-nav">HISTÓRICO 📋</button>
         <button id="btn-logout" class="btn-nav" style="background: #ef4444;" onclick="efetuarLogout()">SAIR 🚪</button>
     </div>
@@ -250,7 +265,7 @@ button {
 <div class="container">
     <!-- Configuração do Técnico / Filtros -->
     <div class="card" id="card-filtros">
-        <h2>Painel de Configuração</h2>
+        <h2 style="margin-top: 0;">Painel de Configuração</h2>
         
         <label>Login do Técnico</label>
         <input type="text" id="input-tecnico" placeholder="LOGIN" disabled style="background: #1e293b; color: #94a3b8; cursor: not-allowed;">
@@ -259,14 +274,14 @@ button {
         <label style="color: #38bdf8;">🔍 Consultar Contrato (Opcional)</label>
         <div style="display: flex; gap: 8px;">
             <input type="text" id="input-busca-contrato" placeholder="DIGITE O NÚMERO DO CONTRATO" style="margin-top: 5px;">
-            <button type="button" class="btn-primary" style="width: auto; margin-top: 5px; white-space: nowrap; padding: 12px 15px; font-size: 13px;" onclick="buscarContratoEspecifico()">CONSULTAR CONTRATO</button>
+            <button type="button" class="btn-primary" style="width: auto; margin-top: 5px; white-space: nowrap; padding: 10px 14px; font-size: 13px;" onclick="buscarContratoEspecifico()">CONSULTAR CONTRATO</button>
         </div>
 
         <!-- CONSULTAR EQUIPAMENTO -->
         <label style="color: #38bdf8;">🔎 Consultar Equipamento (MAC / Serial)</label>
         <div style="display: flex; gap: 8px;">
             <input type="text" id="input-busca-equipamento" placeholder="DIGITE O MAC OU SERIAL DO EQUIPAMENTO" style="margin-top: 5px;" oninput="this.value = this.value.toUpperCase()">
-            <button type="button" class="btn-primary" style="width: auto; margin-top: 5px; white-space: nowrap; padding: 12px 15px; font-size: 13px; background: #0284c7;" onclick="buscarEquipamentoEspecifico()">CONSULTAR EQUIPAMENTO</button>
+            <button type="button" class="btn-primary" style="width: auto; margin-top: 5px; white-space: nowrap; padding: 10px 14px; font-size: 13px; background: #0284c7;" onclick="buscarEquipamentoEspecifico()">CONSULTAR EQUIPAMENTO</button>
         </div>
 
         <label>Cidade de Atuação</label>
@@ -348,13 +363,111 @@ button {
     <div id="lista-contratos"></div>
 </div>
 
+<!-- MODAL PARA GERAÇÃO E ENVIO DA ORDEM DE SERVIÇO EM PDF (CLARO RESIDENCIAL) -->
+<div id="modal-gerar-os" class="modal-overlay">
+    <div style="background: #1e293b; max-width: 600px; margin: 15px auto; padding: 20px; border-radius: 10px; border: 1px solid #e11d48; position: relative;">
+        <button style="position: absolute; top: 12px; right: 12px; width: 30px; height: 30px; border-radius: 50%; background: #ef4444; border: none; font-weight: bold; font-size: 16px; cursor: pointer; color: white; display: flex; align-items: center; justify-content: center;" onclick="fecharModalOS()">✕</button>
+        
+        <h3 style="margin-top: 0; color: #e11d48; display: flex; align-items: center; gap: 8px;">
+            📄 Ordem de Serviço Digital - Claro
+        </h3>
+        <p style="font-size: 12px; color: #94a3b8; margin-bottom: 15px;">Confira e complete os dados abaixo para gerar o PDF oficial e compartilhar com o cliente via WhatsApp.</p>
+
+        <!-- Seção: Dados do Cliente e Visita -->
+        <div style="background: #0f172a; padding: 12px; border-radius: 6px; border: 1px solid #334155; margin-bottom: 12px;">
+            <span style="font-size: 12px; font-weight: bold; color: #38bdf8;">📌 DADOS DO CLIENTE E CONTRATO</span>
+            
+            <div class="grid-2col" style="margin-top: 8px;">
+                <div>
+                    <label style="margin-top: 0;">Número do Contrato / OS</label>
+                    <input type="text" id="os-contrato" placeholder="EX: 123456789">
+                </div>
+                <div>
+                    <label style="margin-top: 0;">CPF / CNPJ do Cliente</label>
+                    <input type="text" id="os-cpf-cliente" placeholder="000.000.000-00">
+                </div>
+            </div>
+
+            <label>Nome do Cliente / Titular</label>
+            <input type="text" id="os-nome-cliente" placeholder="NOME DO CLIENTE" oninput="this.value = this.value.toUpperCase()">
+
+            <label>Endereço Completo</label>
+            <input type="text" id="os-endereco" placeholder="RUA, NÚMERO, BAIRRO" oninput="this.value = this.value.toUpperCase()">
+
+            <div class="grid-2col">
+                <div>
+                    <label>Município / Cidade</label>
+                    <input type="text" id="os-cidade" placeholder="CIDADE" oninput="this.value = this.value.toUpperCase()">
+                </div>
+                <div>
+                    <label>Telefone / WhatsApp do Cliente</label>
+                    <input type="text" id="os-telefone-cliente" placeholder="DDD + NÚMERO">
+                </div>
+            </div>
+        </div>
+
+        <!-- Seção: Preposto (Opcional) -->
+        <div style="background: #0f172a; padding: 12px; border-radius: 6px; border: 1px solid #334155; margin-bottom: 12px;">
+            <span style="font-size: 12px; font-weight: bold; color: #f59e0b;">👤 DADOS DO PREPOSTO (CASO NÃO SEJA O TITULAR)</span>
+            <div class="grid-2col" style="margin-top: 8px;">
+                <div>
+                    <label style="margin-top: 0;">Nome do Preposto</label>
+                    <input type="text" id="os-nome-preposto" placeholder="NOME DE QUEM ACOMPANHOU" oninput="this.value = this.value.toUpperCase()">
+                </div>
+                <div>
+                    <label style="margin-top: 0;">RG / CPF do Preposto</label>
+                    <input type="text" id="os-doc-preposto" placeholder="DOCUMENTO DO PREPOSTO">
+                </div>
+            </div>
+        </div>
+
+        <!-- Seção: Terminais e Equipamentos Retirados -->
+        <div style="background: #0f172a; padding: 12px; border-radius: 6px; border: 1px solid #334155; margin-bottom: 12px;">
+            <span style="font-size: 12px; font-weight: bold; color: #4ade80;">📦 MOVIMENTAÇÃO / RETIRADA DE TERMINAIS</span>
+            
+            <div class="grid-2col" style="margin-top: 8px;">
+                <div>
+                    <label style="margin-top: 0;">Tipo de Equipamento</label>
+                    <input type="text" id="os-tipo-equip" placeholder="MODEM WIFI / DECODER / ONU" oninput="this.value = this.value.toUpperCase()">
+                </div>
+                <div>
+                    <label style="margin-top: 0;">Nº de Série / MAC Retirado</label>
+                    <input type="text" id="os-mac-equip" placeholder="DIGITE O MAC / SERIAL" oninput="this.value = this.value.toUpperCase()">
+                </div>
+            </div>
+
+            <label>Observações do Atendimento</label>
+            <textarea id="os-observacoes" placeholder="OBSERVAÇÕES ADICIONAIS OU MOTIVO DA RETIRADA" oninput="this.value = this.value.toUpperCase()" style="height: 60px;"></textarea>
+        </div>
+
+        <!-- Seção: Dados do Técnico -->
+        <div style="background: #0f172a; padding: 12px; border-radius: 6px; border: 1px solid #334155; margin-bottom: 15px;">
+            <span style="font-size: 12px; font-weight: bold; color: #cbd5e1;">🛠️ DADOS DO TÉCNICO</span>
+            <div class="grid-2col" style="margin-top: 8px;">
+                <div>
+                    <label style="margin-top: 0;">Nome do Técnico</label>
+                    <input type="text" id="os-nome-tecnico" placeholder="NOME DO TÉCNICO" oninput="this.value = this.value.toUpperCase()">
+                </div>
+                <div>
+                    <label style="margin-top: 0;">Login do Técnico</label>
+                    <input type="text" id="os-login-tecnico" placeholder="LOGIN" disabled style="background: #1e293b; color: #94a3b8;">
+                </div>
+            </div>
+        </div>
+
+        <button type="button" class="btn-success" style="background: #e11d48; font-size: 15px;" onclick="processarEGerarOSClaro()">GERAR ORDEM DE SERVIÇO EM PDF E ENVIAR 📄</button>
+    </div>
+</div>
+
 <!-- Modal de Histórico Local -->
 <div id="modal-historico" class="modal-overlay">
     <div style="background: #1e293b; max-width: 500px; margin: 20px auto; padding: 20px; border-radius: 10px; border: 1px solid #334155; position: relative;">
         <button id="btn-fechar-historico" style="position: absolute; top: 10px; right: 10px; width: 30px; height: 30px; border-radius: 50%; background: #ef4444; border: none; font-weight: bold; font-size: 16px; cursor: pointer; color: white; display: flex; align-items: center; justify-content: center; padding:0;">✕</button>
         <h3 style="margin-top: 0; color: #38bdf8;">📋 Histórico de Atendimentos</h3>
         <p style="font-size: 12px; color: #94a3b8; margin-bottom: 15px;">Listagem local de registros enviados por este dispositivo.</p>
-        <div id="historico-lista-container" style="display: flex; flex-direction: column; gap: 10px;"></div>
+        <div id="historico-lista-container" style="display: flex; flex-direction: column; gap: 10px;">
+            <!-- Itens gerados via JavaScript -->
+        </div>
     </div>
 </div>
 
@@ -454,6 +567,7 @@ async function validarAcesso(login, isAutoLogin = false) {
                     if (!inputCidade.value) inputCidade.value = "";
                 }
 
+                // AUTO-SELEÇÃO DE FILTROS PRESETADOS DO TÉCNICO
                 if (data.safrasPermitidas) {
                     const selectSafra = document.getElementById('select-safra');
                     const permitidas = data.safrasPermitidas.split(',').map(s => s.trim());
@@ -571,6 +685,7 @@ function obterGeolocalizacao() {
     });
 }
 
+// --- FÓRMULA DE HAVERSINE ---
 function calcularDistanciaKm(lat1, lon1, lat2, lon2) {
     const R = 6371; 
     const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -583,10 +698,12 @@ function calcularDistanciaKm(lat1, lon1, lat2, lon2) {
     return R * c;
 }
 
+// --- AUXILIAR DE DELAY ---
 function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// --- HIGIENIZADOR DE ENDEREÇOS ---
 function limparEnderecoParaGeocodificacao(endereco) {
     if (!endereco) return "";
     let limpo = address => address.toUpperCase()
@@ -1040,6 +1157,227 @@ function exportarContratosParaXLSX() {
     }
 }
 
+// --- FLUXO DE GERAÇÃO DA ORDEM DE SERVIÇO EM PDF (LAYOUT OFICIAL CLARO) ---
+function abrirModalOS(itemContrato) {
+    const loginTecnico = localStorage.getItem('login_tecnico') || '';
+    document.getElementById('os-login-tecnico').value = loginTecnico;
+    document.getElementById('os-nome-tecnico').value = loginTecnico.toUpperCase();
+
+    if (itemContrato) {
+        document.getElementById('os-contrato').value = itemContrato.contrato || '';
+        document.getElementById('os-nome-cliente').value = itemContrato.titular || '';
+        document.getElementById('os-endereco').value = `${itemContrato.endereco || ''} ${itemContrato.complemento ? ' - ' + itemContrato.complemento : ''} (${itemContrato.bairro || ''})`;
+        document.getElementById('os-cidade').value = itemContrato.cidade || '';
+        document.getElementById('os-telefone-cliente').value = itemContrato.tel_cel || itemContrato.tel_res || '';
+        document.getElementById('os-tipo-equip').value = itemContrato.modelo_equip || 'MODEM WIFI / DECODER';
+        document.getElementById('os-mac-equip').value = (itemContrato.mac && !itemContrato.mac.includes('não disponível')) ? itemContrato.mac : '';
+        document.getElementById('os-observacoes').value = itemContrato.obs || 'RETIRADA DE EQUIPAMENTOS EM COMODATO';
+        document.getElementById('os-cpf-cliente').value = '';
+        document.getElementById('os-nome-preposto').value = '';
+        document.getElementById('os-doc-preposto').value = '';
+    } else {
+        // Formato em Branco
+        document.getElementById('os-contrato').value = '';
+        document.getElementById('os-nome-cliente').value = '';
+        document.getElementById('os-endereco').value = '';
+        document.getElementById('os-cidade').value = '';
+        document.getElementById('os-telefone-cliente').value = '';
+        document.getElementById('os-tipo-equip').value = 'MODEM WIFI / DECODER CLARO';
+        document.getElementById('os-mac-equip').value = '';
+        document.getElementById('os-observacoes').value = 'RETIRADA DE EQUIPAMENTOS';
+        document.getElementById('os-cpf-cliente').value = '';
+        document.getElementById('os-nome-preposto').value = '';
+        document.getElementById('os-doc-preposto').value = '';
+    }
+
+    document.getElementById('modal-gerar-os').style.display = 'block';
+}
+
+function fecharModalOS() {
+    document.getElementById('modal-gerar-os').style.display = 'none';
+}
+
+function processarEGerarOSClaro() {
+    const contrato = document.getElementById('os-contrato').value.trim() || 'N/D';
+    const nomeCliente = document.getElementById('os-nome-cliente').value.trim() || 'N/D';
+    const cpfCliente = document.getElementById('os-cpf-cliente').value.trim() || 'N/D';
+    const endereco = document.getElementById('os-endereco').value.trim() || 'N/D';
+    const cidade = document.getElementById('os-cidade').value.trim() || 'N/D';
+    const telefone = document.getElementById('os-telefone-cliente').value.trim() || 'N/D';
+    const nomePreposto = document.getElementById('os-nome-preposto').value.trim() || 'O PRÓPRIO TITULAR';
+    const docPreposto = document.getElementById('os-doc-preposto').value.trim() || '-';
+    const tipoEquip = document.getElementById('os-tipo-equip').value.trim() || 'EQUIPAMENTO BANDA LARGA / TV';
+    const macEquip = document.getElementById('os-mac-equip').value.trim() || 'SEM NUMERAÇÃO';
+    const obs = document.getElementById('os-observacoes').value.trim() || 'RETIRADA DE EQUIPAMENTOS EM COMODATO CONCLUÍDA';
+    const nomeTecnico = document.getElementById('os-nome-tecnico').value.trim() || 'TÉCNICO AUTORIZADO';
+    const loginTecnico = document.getElementById('os-login-tecnico').value.trim() || 'CLARO.RETIRADA';
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('p', 'mm', 'a4');
+
+    const agora = new Date();
+    const dataFormatada = agora.toLocaleDateString('pt-BR');
+    const horaEntrada = `${agora.getHours().toString().padStart(2, '0')}:${agora.getMinutes().toString().padStart(2, '0')}`;
+
+    // ==========================================
+    // --- PÁGINA 1: LAYOUT ORDEM DE SERVIÇO ---
+    // ==========================================
+    doc.setFillColor(225, 29, 72);
+    doc.rect(10, 10, 190, 12, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.text("ORDEM DE SERVIÇO DIGITAL - MINHA CLARO RESIDENCIAL", 105, 17.5, { align: "center" });
+
+    doc.setTextColor(225, 29, 72);
+    doc.setFontSize(22);
+    doc.text("Claro-", 15, 33);
+
+    doc.setTextColor(50, 50, 50);
+    doc.setFontSize(7.5);
+    doc.setFont("helvetica", "normal");
+    doc.text("Dados da Operação: CLARO S.A. | Procedimento Especial Eletrônico de Atendimento em Campo", 45, 28);
+    doc.text("Atendimento ao Cliente: WhatsApp Claro (11) 99991-0621 | Minha Claro Residencial", 45, 33);
+
+    let y = 42;
+
+    function desenharBlocoSecao(titulo, altura, renderConteudo) {
+        doc.setFillColor(225, 29, 72);
+        doc.rect(10, y, 32, altura, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "bold");
+        
+        const linhasTitulo = doc.splitTextToSize(titulo, 28);
+        doc.text(linhasTitulo, 12, y + 8);
+
+        doc.setFillColor(255, 255, 255);
+        doc.rect(42, y, 158, altura);
+        doc.setDrawColor(200, 200, 200);
+        doc.rect(10, y, 190, altura);
+
+        doc.setTextColor(30, 41, 59);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8.5);
+        renderConteudo(45, y + 6);
+
+        y += altura + 3;
+    }
+
+    desenharBlocoSecao("DADOS DO\nCLIENTE", 22, (cx, cy) => {
+        doc.text(`Nome: ${nomeCliente}`, cx, cy);
+        doc.text(`CPF/CNPJ: ${cpfCliente}`, cx + 85, cy);
+        doc.text(`Endereço: ${endereco}`, cx, cy + 6);
+        doc.text(`Telefone: ${telefone}`, cx, cy + 12);
+        doc.text(`Município: ${cidade} - SP`, cx + 85, cy + 12);
+    });
+
+    desenharBlocoSecao("DADOS DO\nPREPOSTO", 15, (cx, cy) => {
+        doc.text(`Nome do Preposto: ${nomePreposto}`, cx, cy);
+        doc.text(`RG / CPF do Preposto: ${docPreposto}`, cx, cy + 6);
+    });
+
+    desenharBlocoSecao("DADOS DA\nVISITA", 15, (cx, cy) => {
+        doc.text(`Contrato: ${contrato}`, cx, cy);
+        doc.text(`Motivo: RETIRADA DE EQUIPAMENTOS`, cx + 60, cy);
+        doc.text(`Tipo de Ponto: TV / BANDA LARGA / VOZ (EM COMODATO)`, cx, cy + 6);
+    });
+
+    desenharBlocoSecao("DADOS DO\nTÉCNICO", 18, (cx, cy) => {
+        doc.text(`Técnico: ${nomeTecnico}`, cx, cy);
+        doc.text(`Login: ${loginTecnico}`, cx + 85, cy);
+        doc.text(`Credenciada: OPERAÇÃO LOGÍSTICA REVERSA CLARO`, cx, cy + 6);
+        doc.text(`Transporte: MOTO / CARRO`, cx, cy + 12);
+    });
+
+    desenharBlocoSecao("DADOS DO\nATENDIMENTO", 15, (cx, cy) => {
+        doc.text(`Data: ${dataFormatada}`, cx, cy);
+        doc.text(`Hora Entrada: ${horaEntrada}`, cx + 50, cy);
+        doc.text(`Status: EXECUTADO`, cx + 100, cy);
+        doc.text(`Níveis / Validação: EQUIPAMENTO DESCONECTADO E CONFERIDO`, cx, cy + 6);
+    });
+
+    desenharBlocoSecao("ORDENS DE\nSERVIÇOS", 30, (cx, cy) => {
+        doc.setFont("helvetica", "bold");
+        doc.text("Nº da OS", cx, cy);
+        doc.text("Tipo da OS", cx + 30, cy);
+        doc.text("Cód.", cx + 90, cy);
+        doc.text("Produto", cx + 115, cy);
+        doc.line(cx, cy + 2, cx + 150, cy + 2);
+
+        doc.setFont("helvetica", "normal");
+        doc.text(`${contrato}`, cx, cy + 7);
+        doc.text("RETIRADA EQUIPAMENTO", cx + 30, cy + 7);
+        doc.text("RET-01", cx + 90, cy + 7);
+        doc.text("CLARO RESIDENCIAL", cx + 115, cy + 7);
+    });
+
+    // ==========================================
+    // --- PÁGINA 2: MOVIMENTAÇÃO E ASSINATURA --
+    // ==========================================
+    doc.addPage();
+
+    doc.setFillColor(225, 29, 72);
+    doc.rect(10, 10, 190, 8, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.text("MOVIMENTAÇÃO DE TERMINAIS E COMPROVANTE DE ENTREGA", 105, 15.5, { align: "center" });
+
+    y = 22;
+
+    desenharBlocoSecao("MOVIMENTAÇÃO\nDE TERMINAIS", 35, (cx, cy) => {
+        doc.setFont("helvetica", "bold");
+        doc.text("--- RETIRADA DE TERMINAIS ---", cx, cy);
+        doc.setFont("helvetica", "normal");
+        doc.text(`Tipo de Terminal: ${tipoEquip}`, cx, cy + 6);
+        doc.text(`Número / MAC / Serial: ${macEquip}`, cx, cy + 12);
+        doc.text(`Local / Destino: DEVOLUÇÃO LOGÍSTICA CLARO`, cx, cy + 18);
+        doc.text(`Status do Item: RECOLHIDO NO ENDEREÇO DO CLIENTE`, cx, cy + 24);
+    });
+
+    desenharBlocoSecao("TERMO DE\nCIÊNCIA", 38, (cx, cy) => {
+        doc.setFontSize(7.5);
+        const termoTexto = "Ao assinar este documento declaro estar ciente que: 1) Os equipamentos recolhidos nesta visita técnica foram devolvidos à prestadora Claro conforme relação discriminada acima. 2) A devolução do equipamento cedido em comodato extingue a responsabilidade de guarda e conservação sob posse do titular. 3) O cliente recebeu a 2ª via digital deste comprovante.";
+        doc.text(doc.splitTextToSize(termoTexto, 150), cx, cy);
+    });
+
+    desenharBlocoSecao("PESQUISA\nATENDIMENTO", 22, (cx, cy) => {
+        doc.setFontSize(8);
+        doc.text("[ X ] Sim   [   ] Não  | Técnico identificou-se e explicou os procedimentos?", cx, cy);
+        doc.text("[ X ] Sim   [   ] Não  | Equipamento foi retirado em perfeitas condições?", cx, cy + 6);
+        doc.text("[ X ] Sim   [   ] Não  | O comprovante digital foi encaminhado ao cliente?", cx, cy + 12);
+    });
+
+    desenharBlocoSecao("OBSERVAÇÕES\nE ASSINATURA", 45, (cx, cy) => {
+        doc.setFont("helvetica", "bold");
+        doc.text("OBSERVAÇÕES DO ATENDIMENTO:", cx, cy);
+        doc.setFont("helvetica", "normal");
+        doc.text(doc.splitTextToSize(obs, 145), cx, cy + 5);
+
+        doc.line(cx, cy + 25, cx + 145, cy + 25);
+        doc.setFont("helvetica", "bold");
+        doc.text("ASSINATURA DO CLIENTE OU PREPOSTO", cx + 40, cy + 29);
+        doc.setFontSize(7.5);
+        doc.text(`Documento emitido digitalmente em ${dataFormatada} às ${horaEntrada}`, cx + 32, cy + 34);
+    });
+
+    const nomeArquivoPDF = `OS_Claro_${contrato}_${dataFormatada.replace(/\//g, '-')}.pdf`;
+    doc.save(nomeArquivoPDF);
+
+    fecharModalOS();
+
+    const limparNum = telefone.replace(/\D/g, '');
+    const msgWhatsapp = `Olá ${nomeCliente}, tudo bem? Segue o comprovante da Ordem de Serviço de retirada de equipamentos da Claro realizada no seu endereço (Contrato: ${contrato}). Técnico responsável: ${nomeTecnico}.`;
+
+    if (limparNum.length >= 10) {
+        const linkWpp = `https://api.whatsapp.com/send?phone=55${limparNum}&text=${encodeURIComponent(msgWhatsapp)}`;
+        window.open(linkWpp, '_blank');
+    } else {
+        alert("Ordem de Serviço gerada com sucesso! O arquivo PDF foi baixado.");
+    }
+}
+
 // --- CONTROLE DE CARREGAMENTO E ROTEIRIZAÇÃO ---
 document.getElementById('btn-carregar').addEventListener('click', async () => {
     const login = document.getElementById('input-tecnico').value.trim();
@@ -1219,6 +1557,7 @@ document.getElementById('btn-cancelar-bairro').addEventListener('click', () => {
     btnCarregar.disabled = false;
 });
 
+// --- RENDERIZADOR DE CARDS DE CONTRATOS ---
 function renderizarContratos(contratos) {
     const container = document.getElementById('lista-contratos');
     container.innerHTML = "";
@@ -1292,14 +1631,16 @@ function renderizarContratos(contratos) {
                     ${item.modelo_equip}
                 </span>)
             </div>
+            <div class="info-linha"><strong>MAC:</strong> <span style="color:#38bdf8; font-family:monospace;">${item.mac}</span></div>
             ${item.obs ? `<div class="info-linha" style="color: #f59e0b;"><strong>Obs:</strong> ${item.obs}</div>` : ''}
             
-            <div style="display:flex; gap:10px; margin-top:15px;">
-                <button class="btn-primary" style="margin-top:0;" onclick="irParaMapa(${item.lat || 0}, ${item.lon || 0}, '${item.endereco.replace(/'/g, "\\'")}', '${item.cidade}', '${item.contrato}')">🧭 MAPA</button>
-                <button class="btn-warning" style="margin-top:0;" id="btn-atender-${item.contrato}" onclick="iniciarAtendimento('${item.contrato}')">INICIAR ATENDIMENTO</button>
+            <div style="display:grid; grid-template-columns: 1fr 1fr 1.2fr; gap:8px; margin-top:15px;">
+                <button class="btn-primary" style="margin-top:0; padding:10px;" onclick="irParaMapa(${item.lat || 0}, ${item.lon || 0}, '${item.endereco.replace(/'/g, "\\'")}', '${item.cidade}', '${item.contrato}')">🧭 MAPA</button>
+                <button class="btn-warning" style="margin-top:0; padding:10px;" id="btn-atender-${item.contrato}" onclick="iniciarAtendimento('${item.contrato}')">BAIXA OS</button>
+                <button class="btn-primary" style="background:#e11d48; margin-top:0; padding:10px;" onclick='abrirModalOS(${JSON.stringify(item)})'>GERAR OS 📄</button>
             </div>
             
-            <!-- Caixa de Conclusão -->
+            <!-- Caixa de Conclusão de Baixa -->
             <div class="conclusao-box" id="conclusao-${item.contrato}">
                 <label style="margin-top:0; font-weight:bold; color:#cbd5e1;">Selecione o Resultado:</label>
                 <div style="display: flex; gap: 10px; margin-top: 5px; margin-bottom: 15px;">
@@ -1513,7 +1854,7 @@ function validarConclusao(contratoId) {
             statusGpsBox.style.background = "#14532d";
             statusGpsBox.style.color = "#4ade80";
             statusGpsBox.style.border = "1px solid #22c55e";
-            statusGpsBox.innerHTML = `📍 GPS CAPTURADO:<br>Lat ${localizacaoTecnico.latitude} | Lon ${localizacaoTecnico.longitude}`;
+            statusGpsBox.innerHTML = `📍 GPS CAPTURADO:<br>Lat ${localizacaoTecnico.latitude.toFixed(4)} | Lon ${localizacaoTecnico.longitude.toFixed(4)}`;
             btnGps.style.display = "none";
         } else {
             statusGpsBox.style.background = "#7f1d1d";
@@ -1682,7 +2023,7 @@ function iniciarAtendimento(contratoId) {
 
     if (boxConclusao.style.display === "block") {
         boxConclusao.style.display = "none";
-        btnAtender.textContent = "INICIAR ATENDIMENTO";
+        btnAtender.textContent = "BAIXA OS";
         btnAtender.style.background = "#f59e0b";
         card.style.border = "1px solid #334155";
         
@@ -1690,7 +2031,7 @@ function iniciarAtendimento(contratoId) {
         if (badge) badge.remove();
     } else {
         boxConclusao.style.display = "block";
-        btnAtender.textContent = "CANCELAR ATENDIMENTO ✕";
+        btnAtender.textContent = "CANCELAR ✕";
         btnAtender.style.background = "#ef4444";
         card.style.border = "2px solid #f59e0b";
 
