@@ -255,11 +255,18 @@ button {
         <label>Login do Técnico</label>
         <input type="text" id="input-tecnico" placeholder="LOGIN" disabled style="background: #1e293b; color: #94a3b8; cursor: not-allowed;">
         
-        <!-- BUSCA DIRETA POR CONTRATO ESPECÍFICO -->
-        <label style="color: #38bdf8;">🔍 Buscar Contrato Específico (Opcional)</label>
+        <!-- CONSULTAR CONTRATO -->
+        <label style="color: #38bdf8;">🔍 Consultar Contrato (Opcional)</label>
         <div style="display: flex; gap: 8px;">
             <input type="text" id="input-busca-contrato" placeholder="DIGITE O NÚMERO DO CONTRATO" style="margin-top: 5px;">
-            <button type="button" class="btn-primary" style="width: auto; margin-top: 5px; white-space: nowrap; padding: 12px 15px; font-size: 13px;" onclick="buscarContratoEspecifico()">BUSCAR OS</button>
+            <button type="button" class="btn-primary" style="width: auto; margin-top: 5px; white-space: nowrap; padding: 12px 15px; font-size: 13px;" onclick="buscarContratoEspecifico()">CONSULTAR CONTRATO</button>
+        </div>
+
+        <!-- CONSULTAR EQUIPAMENTO -->
+        <label style="color: #38bdf8;">🔎 Consultar Equipamento (MAC / Serial)</label>
+        <div style="display: flex; gap: 8px;">
+            <input type="text" id="input-busca-equipamento" placeholder="DIGITE O MAC OU SERIAL DO EQUIPAMENTO" style="margin-top: 5px;" oninput="this.value = this.value.toUpperCase()">
+            <button type="button" class="btn-primary" style="width: auto; margin-top: 5px; white-space: nowrap; padding: 12px 15px; font-size: 13px; background: #0284c7;" onclick="buscarEquipamentoEspecifico()">CONSULTAR EQUIPAMENTO</button>
         </div>
 
         <label>Cidade de Atuação</label>
@@ -319,10 +326,10 @@ button {
     <!-- Container dinâmico para Alertas/Fallback do GPS -->
     <div id="alert-gps-global"></div>
 
-    <!-- Card de Retorno da Busca Específica de Contrato -->
+    <!-- Card de Retorno da Consulta Específica (Contrato ou Equipamento) -->
     <div class="card" id="card-aviso-busca-especifica" style="display: none; background: #1e293b; border: 1px solid #38bdf8;">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-size: 13px; color: #38bdf8; font-weight: bold;">🔎 Visualizando resultado de Contrato Específico</span>
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <span id="texto-aviso-busca" style="font-size: 13px; color: #38bdf8; font-weight: bold;">🔎 Visualizando resultado da consulta</span>
             <button type="button" class="btn-secondary" style="width: auto; padding: 6px 12px; font-size: 12px; margin: 0; background: #ef4444;" onclick="voltarParaFilaGeral()">✕ VOLTAR À FILA GERAL</button>
         </div>
     </div>
@@ -397,7 +404,7 @@ let indexExibicaoAtual = 0;
 let limiteExibicao = 30; 
 let contratosCarregadosTemporarios = []; 
 
-// Backup da fila geral para restauração rápida após busca específica
+// Backup da fila geral para restauração rápida após consulta
 let backupFilaGeral = [];
 
 let filtroTipoMapa = 'ALL';
@@ -564,7 +571,6 @@ function obterGeolocalizacao() {
     });
 }
 
-// --- FÓRMULA DE HAVERSINE ---
 function calcularDistanciaKm(lat1, lon1, lat2, lon2) {
     const R = 6371; 
     const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -857,7 +863,6 @@ async function prosseguirProcessamentoContratos(contratosParaProcessar, limit) {
         }
     }
 
-    // Salva o backup da lista completa da fila geral
     backupFilaGeral = [...todosContratosOrdenados];
 
     const blocoExibicao = todosContratosOrdenados.slice(indexExibicaoAtual, indexExibicaoAtual + limiteExibicao);
@@ -886,17 +891,17 @@ async function prosseguirProcessamentoContratos(contratosParaProcessar, limit) {
     btnCarregar.disabled = false;
 }
 
-// --- BUSCA DIRETA DE UM CONTRATO ESPECÍFICO ---
+// --- CONSULTAR CONTRATO ESPECÍFICO ---
 async function buscarContratoEspecifico() {
     const contratoBuscado = document.getElementById('input-busca-contrato').value.trim();
     if (!contratoBuscado) {
-        alert("Por favor, digite o número do contrato a ser pesquisado.");
+        alert("Por favor, digite o número do contrato a ser consultado.");
         return;
     }
 
     const btnCarregar = document.getElementById('btn-carregar');
     btnCarregar.disabled = true;
-    btnCarregar.textContent = "PESQUISANDO CONTRATO...";
+    btnCarregar.textContent = "CONSULTANDO CONTRATO...";
 
     try {
         const response = await fetch(`/api/obterContratos?numeroContrato=${encodeURIComponent(contratoBuscado)}`);
@@ -908,7 +913,7 @@ async function buscarContratoEspecifico() {
                 todosContratosOrdenados = contratos;
                 renderizarContratos(contratos);
                 
-                // Exibe card com opção de retornar para a fila anterior
+                document.getElementById('texto-aviso-busca').textContent = `🔎 Visualizando resultado do Contrato: ${contratoBuscado}`;
                 document.getElementById('card-aviso-busca-especifica').style.display = 'block';
                 document.getElementById('card-bairro-selecao').style.display = 'none';
                 document.getElementById('btn-mapa-backlog').style.display = 'none';
@@ -926,9 +931,50 @@ async function buscarContratoEspecifico() {
     }
 }
 
-// --- RESTAURA A FILA GERAL APÓS UMA BUSCA ESPECÍFICA ---
+// --- CONSULTAR EQUIPAMENTO (MAC / SERIAL EM TODA A BASE) ---
+async function buscarEquipamentoEspecifico() {
+    const equipBuscado = document.getElementById('input-busca-equipamento').value.trim();
+    if (!equipBuscado) {
+        alert("Por favor, digite o MAC ou número de série do equipamento.");
+        return;
+    }
+
+    const btnCarregar = document.getElementById('btn-carregar');
+    btnCarregar.disabled = true;
+    btnCarregar.textContent = "CONSULTANDO EQUIPAMENTO NO BANCO...";
+
+    try {
+        const response = await fetch(`/api/obterContratos?numeroEquipamento=${encodeURIComponent(equipBuscado)}`);
+        if (response.ok) {
+            const contratos = await response.json();
+            if (contratos.length === 0) {
+                alert(`Nenhum contrato casado com o equipamento "${equipBuscado}" foi localizado na base.`);
+            } else {
+                todosContratosOrdenados = contratos;
+                renderizarContratos(contratos);
+
+                document.getElementById('texto-aviso-busca').textContent = `🔎 Contrato(s) localizado(s) para o Equipamento: ${equipBuscado.toUpperCase()}`;
+                document.getElementById('card-aviso-busca-especifica').style.display = 'block';
+                document.getElementById('card-bairro-selecao').style.display = 'none';
+                document.getElementById('btn-mapa-backlog').style.display = 'none';
+                document.getElementById('btn-exportar-xlsx').style.display = 'block';
+            }
+        } else {
+            alert("Erro ao consultar equipamento no banco de dados.");
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Erro de conexão ao consultar equipamento.");
+    } finally {
+        btnCarregar.disabled = false;
+        btnCarregar.textContent = "CARREGAR FILA DA MINHA ÁREA E ORDENAR";
+    }
+}
+
+// --- RESTAURA A FILA GERAL APÓS UMA CONSULTA ---
 function voltarParaFilaGeral() {
     document.getElementById('input-busca-contrato').value = "";
+    document.getElementById('input-busca-equipamento').value = "";
     document.getElementById('card-aviso-busca-especifica').style.display = 'none';
 
     if (backupFilaGeral && backupFilaGeral.length > 0) {
@@ -975,12 +1021,10 @@ function exportarContratosParaXLSX() {
             };
         });
 
-        // Cria a pasta de trabalho e a aba com SheetJS
         const ws = XLSX.utils.json_to_sheet(dadosPlanilha);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Contratos_Retirada");
 
-        // Ajusta largura visual automática das colunas
         const maxCols = Object.keys(dadosPlanilha[0] || {}).map(key => ({
             wch: Math.max(key.length + 3, 14)
         }));
