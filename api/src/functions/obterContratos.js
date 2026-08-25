@@ -17,6 +17,7 @@ app.http('obterContratos', {
     handler: async (request, context) => {
         try {
             const numeroContrato = request.query.get('numeroContrato');
+            const numeroEquipamento = request.query.get('numeroEquipamento'); // Busca direta por MAC/Serial
             const cidade = request.query.get('cidade');
             const safra = request.query.get('safra');
             const tipo = request.query.get('tipo');
@@ -34,7 +35,7 @@ app.http('obterContratos', {
 
             const tableContratos = TableClient.fromConnectionString(connectionString, 'ContratosRetirada');
 
-            // 1. FLUXO DE BUSCA DIRETA POR NÚMERO DE CONTRATO (OS)
+            // 1. FLUXO DE CONSULTA POR NÚMERO DE CONTRATO (OS)
             if (numeroContrato) {
                 const termo = numeroContrato.trim();
                 const entities = tableContratos.listEntities({
@@ -48,7 +49,29 @@ app.http('obterContratos', {
                 return { status: 200, jsonBody: resultado };
             }
 
-            // 2. VALIDAÇÃO DOS PARÂMETROS OBRIGATÓRIOS
+            // 2. FLUXO DE CONSULTA POR EQUIPAMENTO (MAC / SERIAL EM TODA A TABELA)
+            if (numeroEquipamento) {
+                const termoEquip = numeroEquipamento.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+                context.log(`[obterContratos] Iniciando varredura geral por equipamento: ${termoEquip}`);
+
+                const entities = tableContratos.listEntities();
+                const resultado = [];
+
+                for await (const entity of entities) {
+                    const mac = String(entity.Mac || entity.mac || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+                    const modelo = String(entity.ModeloEquip || entity.modelo_equipamento || entity.FamiliaEquip || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+                    const rowKey = String(entity.RowKey || entity.rowKey || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+                    // Compara se o MAC ou identificador do equipamento contém a numeração consultada
+                    if (mac.includes(termoEquip) || modelo.includes(termoEquip) || rowKey.includes(termoEquip)) {
+                        resultado.push(formatarEntidadeContrato(entity));
+                    }
+                }
+
+                return { status: 200, jsonBody: resultado };
+            }
+
+            // 3. VALIDAÇÃO DOS PARÂMETROS OBRIGATÓRIOS PARA A FILA GERAL
             if (!cidade || !safra) {
                 return {
                     status: 400,
@@ -58,7 +81,7 @@ app.http('obterContratos', {
 
             const cidadeUpper = cidade.trim().toUpperCase();
             
-            // 3. IDENTIFICAÇÃO E DIVISÃO DE ÁREAS ENTRE EQUIPES NA CIDADE
+            // 4. IDENTIFICAÇÃO E DIVISÃO DE ÁREAS ENTRE EQUIPES NA CIDADE
             let totalEquipes = 1;
             let indiceEquipe = 0;
 
@@ -80,7 +103,7 @@ app.http('obterContratos', {
                         }
                     }
 
-                    tecnicosNaCidade.sort(); // Ordenação alfabética para consistência de setores
+                    tecnicosNaCidade.sort();
                     if (tecnicosNaCidade.length > 1) {
                         totalEquipes = tecnicosNaCidade.length;
                         const idx = tecnicosNaCidade.indexOf(tecnicoLogin);
@@ -92,7 +115,7 @@ app.http('obterContratos', {
                 }
             }
 
-            // 4. FILTRAGEM ODATA NO BANCO DE DADOS
+            // 5. FILTRAGEM ODATA NO BANCO DE DADOS
             let queryFilter = `Cidade eq '${cidadeUpper}'`;
 
             if (safra && safra !== 'TODOS') {
@@ -133,13 +156,12 @@ app.http('obterContratos', {
                 todosContratos.push(formatarEntidadeContrato(entity));
             }
 
-            // 5. DIVISÃO GEOGRÁFICA / INTERCALAÇÃO ENTRE EQUIPES DA MESMA CIDADE
+            // 6. DIVISÃO GEOGRÁFICA / INTERCALAÇÃO ENTRE EQUIPES DA MESMA CIDADE
             let contratosDesignados = todosContratos;
 
             if (totalEquipes > 1 && todosContratos.length > 0) {
                 const contratosComGeo = todosContratos.filter(c => c.lat && c.lon && c.lat !== 1.0);
                 
-                // Se grande parte dos contratos possui geolocalização, divide em fatias contíguas de setor
                 if (contratosComGeo.length >= todosContratos.length * 0.4) {
                     contratosComGeo.sort((a, b) => (a.lat - b.lat) || (a.lon - b.lon));
                     
@@ -147,13 +169,11 @@ app.http('obterContratos', {
                     const inicio = indiceEquipe * chunkSize;
                     const geoDoSetor = contratosComGeo.slice(inicio, inicio + chunkSize);
 
-                    // Contratos pendentes de geolocalização são divididos proporcionalmente por hash modular
                     const semGeo = todosContratos.filter(c => !c.lat || !c.lon || c.lat === 1.0);
                     const semGeoDoSetor = semGeo.filter(c => (hashCode(String(c.contrato || c.bairro)) % totalEquipes) === indiceEquipe);
 
                     contratosDesignados = [...geoDoSetor, ...semGeoDoSetor];
                 } else {
-                    // Sem coordenadas suficientes: partição determinística equilibrada por Hash do contrato
                     contratosDesignados = todosContratos.filter(c => (hashCode(String(c.contrato || c.bairro)) % totalEquipes) === indiceEquipe);
                 }
             }
@@ -177,7 +197,7 @@ app.http('obterContratos', {
 });
 
 function formatarEntidadeContrato(entity) {
-    const macString = entity.Mac || '';
+    const macString = entity.Mac || entity.mac || '';
     const qtdEquip = macString ? macString.split('/').length : (entity.quantidade_equipamentos || 1);
 
     const latitudeFinal = (entity.latitude !== undefined && entity.latitude !== null) ? parseFloat(entity.latitude) : 
@@ -200,7 +220,7 @@ function formatarEntidadeContrato(entity) {
         tel_cel: entity.TelCel || entity.tel_celular || '',
         qtd_equip: qtdEquip,
         modelo_equip: entity.ModeloEquip || entity.FamiliaEquip || entity.modelo_equipamento || 'N/D',
-        mac: entity.Mac || 'MAC não disponível para este equipamento', 
+        mac: entity.Mac || entity.mac || 'MAC não disponível para este equipamento', 
         obs: entity.Obs || entity.obs || '',
         lat: latitudeFinal, 
         lon: longitudeFinal,
