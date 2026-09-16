@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -332,9 +331,7 @@ button {
         <button id="btn-carregar" class="btn-primary">CARREGAR FILA E ORDENAR POR PROXIMIDADE</button>
         
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
-            <!-- Botão Dinâmico para abrir o Mapa do Backlog -->
             <button id="btn-mapa-backlog" class="btn-primary" style="background: #8b5cf6; margin-top: 0; display: none;" onclick="abrirMapaBacklog()">MAPA GERAL DO BACKLOG 🗺️</button>
-            <!-- Botão Dinâmico para Extração XLSX dos Contratos -->
             <button id="btn-exportar-xlsx" class="btn-success" style="background: #059669; margin-top: 0; display: none;" onclick="exportarContratosParaXLSX()">EXTRAIR XLSX 📥</button>
         </div>
     </div>
@@ -471,9 +468,7 @@ button {
         <button id="btn-fechar-historico" style="position: absolute; top: 10px; right: 10px; width: 30px; height: 30px; border-radius: 50%; background: #ef4444; border: none; font-weight: bold; font-size: 16px; cursor: pointer; color: white; display: flex; align-items: center; justify-content: center; padding:0;">✕</button>
         <h3 style="margin-top: 0; color: #38bdf8;">📋 Histórico de Atendimentos</h3>
         <p style="font-size: 12px; color: #94a3b8; margin-bottom: 15px;">Listagem local de registros enviados por este dispositivo.</p>
-        <div id="historico-lista-container" style="display: flex; flex-direction: column; gap: 10px;">
-            <!-- Itens gerados via JavaScript -->
-        </div>
+        <div id="historico-lista-container" style="display: flex; flex-direction: column; gap: 10px;"></div>
     </div>
 </div>
 
@@ -582,7 +577,7 @@ async function validarAcesso(login, isAutoLogin = false) {
                         opt.selected = permitidas.includes(opt.value) || permitidas.includes('TODOS');
                     });
 
-                    // BLOQUEIA ALTERAÇÕES CASO TENHA SIDO TRAVADO UM MÊS SAFRA DETERMINADO
+                    // BLOQUEIA SOMENTE A SAFRA E QUANTIDADE SE RESTRITO, MAS MANTÉM O TIPO LIVRE
                     const temSafraDeterminada = permitidas.length > 0 && !permitidas.includes('TODOS');
                     if (temSafraDeterminada) {
                         selectSafra.disabled = true;
@@ -595,14 +590,15 @@ async function validarAcesso(login, isAutoLogin = false) {
                         selectQtd.style.background = '#1e293b';
                         selectQtd.style.color = '#94a3b8';
                         selectQtd.style.cursor = 'not-allowed';
-
-                        const selectTipo = document.getElementById('select-tipo');
-                        selectTipo.disabled = true;
-                        selectTipo.style.background = '#1e293b';
-                        selectTipo.style.color = '#94a3b8';
-                        selectTipo.style.cursor = 'not-allowed';
                     }
                 }
+
+                // GARANTE QUE O TIPO DE DESCONEXÃO SEMPRE FIQUE LIBERADO PARA O TÉCNICO ESCOLHER
+                const selectTipo = document.getElementById('select-tipo');
+                selectTipo.disabled = false;
+                selectTipo.style.background = '#0f172a';
+                selectTipo.style.color = 'white';
+                selectTipo.style.cursor = 'pointer';
 
                 if (data.limiteServicos) {
                     const selectQtd = document.getElementById('select-quantidade');
@@ -674,7 +670,7 @@ function efetuarLogout() {
     selectTipo.disabled = false;
     selectTipo.style.background = '#0f172a';
     selectTipo.style.color = 'white';
-    selectTipo.style.cursor = 'default';
+    selectTipo.style.cursor = 'pointer';
 
     exibirLogin(true);
 }
@@ -1203,7 +1199,6 @@ function abrirModalOS(itemContrato) {
         document.getElementById('os-nome-preposto').value = '';
         document.getElementById('os-doc-preposto').value = '';
     } else {
-        // Formato em Branco
         document.getElementById('os-contrato').value = '';
         document.getElementById('os-nome-cliente').value = '';
         document.getElementById('os-endereco').value = '';
@@ -1246,9 +1241,6 @@ function gerarDocumentoPDFClaro() {
     const dataFormatada = agora.toLocaleDateString('pt-BR');
     const horaEntrada = `${agora.getHours().toString().padStart(2, '0')}:${agora.getMinutes().toString().padStart(2, '0')}`;
 
-    // ==========================================
-    // --- PÁGINA 1: LAYOUT ORDEM DE SERVIÇO ---
-    // ==========================================
     doc.setFillColor(225, 29, 72);
     doc.rect(10, 10, 190, 12, 'F');
     doc.setTextColor(255, 255, 255);
@@ -1339,9 +1331,6 @@ function gerarDocumentoPDFClaro() {
         doc.text("CLARO RESIDENCIAL", cx + 115, cy + 7);
     });
 
-    // ==========================================
-    // --- PÁGINA 2: MOVIMENTAÇÃO E ASSINATURA --
-    // ==========================================
     doc.addPage();
 
     doc.setFillColor(225, 29, 72);
@@ -1493,6 +1482,19 @@ document.getElementById('btn-carregar').addEventListener('click', async () => {
         const response = await fetch(`/api/obterContratos?cidade=${cidade}&safra=${safra}&tipo=${tipo}&limit=${limiteSwaQuery}&tecnicoLogin=${encodeURIComponent(login)}`);
         if (response.ok) {
             contratosFiltrados = await response.json();
+
+            // FILTRAGEM LOCAL CASO A API RETORNE A LISTA GERAL
+            if (tipo && tipo !== 'TODOS') {
+                contratosFiltrados = contratosFiltrados.filter(c => {
+                    const tipoContrato = String(c.tipo || c.Tipo || c.TIPO || '').toUpperCase();
+                    if (tipo.toUpperCase().includes('OPC')) {
+                        return tipoContrato.includes('OPC');
+                    } else if (tipo.toUpperCase().includes('INAD')) {
+                        return tipoContrato.includes('INAD');
+                    }
+                    return true;
+                });
+            }
         } else {
             alert("Erro ao buscar registros da base do Azure.");
             btnCarregar.disabled = false;
@@ -2131,10 +2133,7 @@ function iniciarAtendimento(contratoId) {
     }
 }
 
-// ==========================================
 // --- SISTEMA DE REVERSÃO NO PAINEL TÉCNICO ---
-// ==========================================
-
 async function obterEquipamentosDoContrato(contratoId) {
     let contratoEncontrado = contratosCarregadosTemporarios.find(c => String(c.contrato) === String(contratoId)) || 
                              todosContratosOrdenados.find(c => String(c.contrato) === String(contratoId));
