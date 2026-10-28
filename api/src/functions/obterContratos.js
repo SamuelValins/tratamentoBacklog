@@ -165,7 +165,7 @@ app.http('obterContratos', {
             const termoFamilia = (familia && familia !== 'TODOS') ? normalizarTexto(familia) : null;
 
             for await (const entity of entities) {
-             // FILTRAGEM POR FAMÍLIA DE EQUIPAMENTO (Suporta correspondência parcial para compostos como 'GPON / DECODER HD IP' e 'VSB')
+                // FILTRAGEM POR FAMÍLIA DE EQUIPAMENTO (Suporta compostos como 'GPON / DECODER HD IP' e 'VSB')
                 if (termoFamilia) {
                     const familiaEntity = normalizarTexto(`${entity.FamiliaEquip || ''} ${entity.familia_equip || ''} ${entity.ModeloEquip || ''}`);
                     
@@ -173,7 +173,6 @@ app.http('obterContratos', {
                         const ehNaoInformado = !familiaEntity || familiaEntity.includes('NAO INFORMADO') || familiaEntity === 'N/D';
                         if (!ehNaoInformado) continue;
                     } else if (termoFamilia.includes('DECODER')) {
-                        // Atende tanto 'DECODER HD IP' quanto busca genérica por 'DECODER'
                         if (termoFamilia === 'DECODER (TODOS)' || termoFamilia === 'DECODER') {
                             if (!familiaEntity.includes('DECODER')) continue;
                         } else {
@@ -183,6 +182,10 @@ app.http('obterContratos', {
                         if (!familiaEntity.includes(termoFamilia)) continue;
                     }
                 }
+
+                // Insere na lista e fecha o for await devidamente:
+                todosContratos.push(formatarEntidadeContrato(entity));
+            }
 
             // 6. DIVISÃO GEOGRÁFICA / INTERCALAÇÃO ENTRE EQUIPES DA MESMA CIDADE
             let contratosDesignados = todosContratos;
