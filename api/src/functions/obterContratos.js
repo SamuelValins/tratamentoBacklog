@@ -11,6 +11,15 @@ function hashCode(str) {
     return Math.abs(hash);
 }
 
+// Auxiliar para normalização de strings (remove acentos e espaços extras)
+function normalizarTexto(texto) {
+    return String(texto || '')
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toUpperCase()
+        .trim();
+}
+
 app.http('obterContratos', {
     methods: ['GET'],
     authLevel: 'anonymous',
@@ -21,6 +30,7 @@ app.http('obterContratos', {
             const cidade = request.query.get('cidade');
             const safra = request.query.get('safra');
             const tipo = request.query.get('tipo');
+            const familia = request.query.get('familia'); // Novo filtro por Família do Equipamento
             const limit = request.query.get('limit'); 
             const tecnicoLogin = (request.query.get('tecnicoLogin') || '').toLowerCase().trim();
 
@@ -152,7 +162,28 @@ app.http('obterContratos', {
             });
 
             const todosContratos = [];
+            const termoFamilia = (familia && familia !== 'TODOS') ? normalizarTexto(familia) : null;
+
             for await (const entity of entities) {
+                // FILTRAGEM POR FAMÍLIA DE EQUIPAMENTO (Suporta correspondência parcial para compostos como 'GPON / DECODER HD IP')
+                if (termoFamilia) {
+                    const familiaEntity = normalizarTexto(entity.FamiliaEquip || entity.familia_equip || entity.ModeloEquip || '');
+                    
+                    if (termoFamilia === 'NAO INFORMADO') {
+                        const ehNaoInformado = !familiaEntity || familiaEntity.includes('NAO INFORMADO') || familiaEntity === 'N/D';
+                        if (!ehNaoInformado) continue;
+                    } else if (termoFamilia.includes('DECODER')) {
+                        // Atende tanto 'DECODER HD IP' quanto busca genérica por 'DECODER'
+                        if (termoFamilia === 'DECODER (TODOS)' || termoFamilia === 'DECODER') {
+                            if (!familiaEntity.includes('DECODER')) continue;
+                        } else {
+                            if (!familiaEntity.includes(termoFamilia)) continue;
+                        }
+                    } else {
+                        if (!familiaEntity.includes(termoFamilia)) continue;
+                    }
+                }
+
                 todosContratos.push(formatarEntidadeContrato(entity));
             }
 
@@ -220,6 +251,7 @@ function formatarEntidadeContrato(entity) {
         tel_cel: entity.TelCel || entity.tel_celular || '',
         qtd_equip: qtdEquip,
         modelo_equip: entity.ModeloEquip || entity.FamiliaEquip || entity.modelo_equipamento || 'N/D',
+        familia_equip: entity.FamiliaEquip || entity.familia_equip || entity.ModeloEquip || 'N/D',
         mac: entity.Mac || entity.mac || 'MAC não disponível para este equipamento', 
         obs: entity.Obs || entity.obs || '',
         lat: latitudeFinal, 
