@@ -1798,9 +1798,9 @@ function irParaMapa(lat, lon, address, city, contratoId) {
         } else {
             window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lon}`, '_blank');
         }
-    } else if (address) {
-        const busca受理completo = `${address}, ${city || ''} - SP`;
-        window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(busca受理completo)}`, '_blank');
+     } else if (address) {
+        const buscaEnderecoCompleto = `${address}, ${city || ''} - SP`;
+        window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(buscaEnderecoCompleto)}`, '_blank');
     } else {
         alert("Endereço não disponível para navegação.");
     }
