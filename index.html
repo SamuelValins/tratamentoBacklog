@@ -545,7 +545,7 @@ let equipamentosContratoReversao = {};
 let mapaBacklogInstance = null;
 let markersGroup = null;
 
-// --- GESTÃO DE LOGIN E AUTENTICAÇÃO ---
+// --- GESTÃO DE LOGIN E AUTENTICAÇÃO COM DIAGNÓSTICO DETALHADO ---
 async function validarAcesso(login, isAutoLogin = false) {
     const btnEntrar = document.getElementById('btn-login-entrar');
     if (btnEntrar) {
@@ -582,7 +582,6 @@ async function validarAcesso(login, isAutoLogin = false) {
                     if (!inputCidade.value) inputCidade.value = "";
                 }
 
-                // AUTO-SELEÇÃO DE FILTROS PRESETADOS DO TÉCNICO (SAFRAS E LIMITES)
                 if (data.safrasPermitidas) {
                     const selectSafra = document.getElementById('select-safra');
                     const permitidas = data.safrasPermitidas.split(',').map(s => s.trim());
@@ -590,7 +589,6 @@ async function validarAcesso(login, isAutoLogin = false) {
                         opt.selected = permitidas.includes(opt.value) || permitidas.includes('TODOS');
                     });
 
-                    // BLOQUEIA SOMENTE A SAFRA E QUANTIDADE SE RESTRITO, MAS MANTÉM O TIPO LIVRE
                     const temSafraDeterminada = permitidas.length > 0 && !permitidas.includes('TODOS');
                     if (temSafraDeterminada) {
                         selectSafra.disabled = true;
@@ -606,14 +604,12 @@ async function validarAcesso(login, isAutoLogin = false) {
                     }
                 }
 
-                // GARANTE QUE O TIPO DE DESCONEXÃO SEMPRE FIQUE LIBERADO PARA O TÉCNICO ESCOLHER
                 const selectTipo = document.getElementById('select-tipo');
                 selectTipo.disabled = false;
                 selectTipo.style.background = '#0f172a';
                 selectTipo.style.color = 'white';
                 selectTipo.style.cursor = 'pointer';
 
-                // LIBERA O FILTRO DE FAMÍLIA DE EQUIPAMENTO
                 const selectFamilia = document.getElementById('select-familia');
                 if (selectFamilia) {
                     selectFamilia.disabled = false;
@@ -636,12 +632,19 @@ async function validarAcesso(login, isAutoLogin = false) {
                 efetuarLogout();
             }
         } else {
-            alert("Erro ao conectar com o serviço de validação.");
+            let detalheErro = "";
+            try {
+                const jsonErr = await response.json();
+                detalheErro = jsonErr.error || jsonErr.message || JSON.stringify(jsonErr);
+            } catch {
+                detalheErro = await response.text();
+            }
+            alert(`Falha no serviço de validação (HTTP ${response.status}):\n${detalheErro || "Sem resposta do servidor"}`);
             if (isAutoLogin) exibirLogin(true);
         }
     } catch (e) {
         console.error(e);
-        alert("Falha de rede ao tentar autenticar.");
+        alert(`Falha de rede ao tentar autenticar: ${e.message}`);
         if (isAutoLogin) exibirLogin(true);
     } finally {
         if (btnEntrar) {
