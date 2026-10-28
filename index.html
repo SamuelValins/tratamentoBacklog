@@ -318,6 +318,18 @@ button {
             <option value="INADIMPLÊNCIA">INADIMPLÊNCIA</option>
         </select>
 
+        <!-- NOVO FILTRO: FAMÍLIA DO EQUIPAMENTO -->
+        <label>Família do Equipamento</label>
+        <select id="select-familia">
+            <option value="TODOS" selected>TODOS</option>
+            <option value="GPON">GPON</option>
+            <option value="DECODER HD IP">DECODER HD IP</option>
+            <option value="DECODER">DECODER (TODOS)</option>
+            <option value="HFC">HFC</option>
+            <option value="EMTA">EMTA</option>
+            <option value="NÃO INFORMADO">NÃO INFORMADO</option>
+        </select>
+
         <label>Quantidade de Contratos a Buscar</label>
         <select id="select-quantidade">
             <option value="10">10 Contratos</option>
@@ -600,6 +612,15 @@ async function validarAcesso(login, isAutoLogin = false) {
                 selectTipo.style.color = 'white';
                 selectTipo.style.cursor = 'pointer';
 
+                // LIBERA O FILTRO DE FAMÍLIA DE EQUIPAMENTO
+                const selectFamilia = document.getElementById('select-familia');
+                if (selectFamilia) {
+                    selectFamilia.disabled = false;
+                    selectFamilia.style.background = '#0f172a';
+                    selectFamilia.style.color = 'white';
+                    selectFamilia.style.cursor = 'pointer';
+                }
+
                 if (data.limiteServicos) {
                     const selectQtd = document.getElementById('select-quantidade');
                     selectQtd.value = data.limiteServicos;
@@ -671,6 +692,15 @@ function efetuarLogout() {
     selectTipo.style.background = '#0f172a';
     selectTipo.style.color = 'white';
     selectTipo.style.cursor = 'pointer';
+
+    const selectFamilia = document.getElementById('select-familia');
+    if (selectFamilia) {
+        selectFamilia.value = 'TODOS';
+        selectFamilia.disabled = false;
+        selectFamilia.style.background = '#0f172a';
+        selectFamilia.style.color = 'white';
+        selectFamilia.style.cursor = 'pointer';
+    }
 
     exibirLogin(true);
 }
@@ -1151,6 +1181,7 @@ function exportarContratosParaXLSX() {
                 "Tel Celular": c.tel_cel || "",
                 "Tipo de Desconexão": c.tipo || "DESCONEXÃO",
                 "Mês Safra": safraTratada,
+                "Família Equipamento": c.familia_equip || c.modelo_equip || "N/D",
                 "Qtd Equipamentos": c.qtd_equip || 1,
                 "Modelos de Equipamentos": c.modelo_equip || "N/D",
                 "MACs dos Equipamentos": c.mac || "N/D",
@@ -1427,6 +1458,7 @@ document.getElementById('btn-carregar').addEventListener('click', async () => {
     const cityVal = document.getElementById('input-cidade').value.trim();
     const selectSafra = document.getElementById('select-safra');
     const tipo = document.getElementById('select-tipo').value;
+    const familia = document.getElementById('select-familia').value;
     const limit = document.getElementById('select-quantidade').value;
     const modo = document.getElementById('select-modo-mapeamento').value;
 
@@ -1479,7 +1511,7 @@ document.getElementById('btn-carregar').addEventListener('click', async () => {
 
     let contratosFiltrados = [];
     try {
-        const response = await fetch(`/api/obterContratos?cidade=${cidade}&safra=${safra}&tipo=${tipo}&limit=${limiteSwaQuery}&tecnicoLogin=${encodeURIComponent(login)}`);
+        const response = await fetch(`/api/obterContratos?cidade=${cidade}&safra=${safra}&tipo=${tipo}&familia=${encodeURIComponent(familia)}&limit=${limiteSwaQuery}&tecnicoLogin=${encodeURIComponent(login)}`);
         if (response.ok) {
             contratosFiltrados = await response.json();
 
@@ -1493,6 +1525,16 @@ document.getElementById('btn-carregar').addEventListener('click', async () => {
                         return tipoContrato.includes('INAD');
                     }
                     return true;
+                });
+            }
+
+            // FILTRAGEM LOCAL DE FAMÍLIA DE EQUIPAMENTO (RESILIÊNCIA NO FRONT)
+            if (familia && familia !== 'TODOS') {
+                const famBusca = familia.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+                contratosFiltrados = contratosFiltrados.filter(c => {
+                    const famContrato = String(c.familia_equip || c.modelo_equip || '')
+                        .normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+                    return famContrato.includes(famBusca);
                 });
             }
         } else {
@@ -1756,8 +1798,8 @@ function irParaMapa(lat, lon, address, city, contratoId) {
             window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lon}`, '_blank');
         }
     } else if (address) {
-        const buscaEnderecoCompleto = `${address}, ${city || ''} - SP`;
-        window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(buscaEnderecoCompleto)}`, '_blank');
+        const busca受理completo = `${address}, ${city || ''} - SP`;
+        window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(busca受理completo)}`, '_blank');
     } else {
         alert("Endereço não disponível para navegação.");
     }
