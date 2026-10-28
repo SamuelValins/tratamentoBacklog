@@ -545,7 +545,7 @@ let equipamentosContratoReversao = {};
 let mapaBacklogInstance = null;
 let markersGroup = null;
 
-// --- GESTÃO DE LOGIN E AUTENTICAÇÃO COM DIAGNÓSTICO DETALHADO ---
+// --- GESTÃO DE LOGIN E AUTENTICAÇÃO COM DIAGNÓSTICO DETALHADO E SEGURO ---
 async function validarAcesso(login, isAutoLogin = false) {
     const btnEntrar = document.getElementById('btn-login-entrar');
     if (btnEntrar) {
@@ -559,6 +559,9 @@ async function validarAcesso(login, isAutoLogin = false) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ login: login })
         });
+
+        // Usamos response.clone() para permitir leitura sem travar o stream
+        const responseClone = response.clone();
 
         if (response.ok) {
             const data = await response.json();
@@ -632,19 +635,24 @@ async function validarAcesso(login, isAutoLogin = false) {
                 efetuarLogout();
             }
         } else {
+            // Leitura segura do erro retornado pelo Azure
             let detalheErro = "";
             try {
                 const jsonErr = await response.json();
                 detalheErro = jsonErr.error || jsonErr.message || JSON.stringify(jsonErr);
             } catch {
-                detalheErro = await response.text();
+                try {
+                    detalheErro = await responseClone.text();
+                } catch {
+                    detalheErro = "Erro sem mensagem no corpo.";
+                }
             }
-            alert(`Falha no serviço de validação (HTTP ${response.status}):\n${detalheErro || "Sem resposta do servidor"}`);
+            alert(`Falha no serviço de validação (HTTP ${response.status}):\n${detalheErro}`);
             if (isAutoLogin) exibirLogin(true);
         }
     } catch (e) {
         console.error(e);
-        alert(`Falha de rede ao tentar autenticar: ${e.message}`);
+        alert(`Erro na requisição: ${e.message}`);
         if (isAutoLogin) exibirLogin(true);
     } finally {
         if (btnEntrar) {
